@@ -1,5 +1,1 @@
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
+type(scope): mô tả ngắn
