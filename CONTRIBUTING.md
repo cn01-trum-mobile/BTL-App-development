@@ -68,23 +68,50 @@ Hướng dẫn này giúp mọi người làm việc đồng bộ, dễ quản l
 - PR được approve mới merge.
 
 ## 5. Chỉnh sửa Wiki
-Wiki là tài liệu hướng dẫn, quy trình, kiến thức dự án.
+Wiki dùng để lưu trữ **tài liệu hướng dẫn, quy trình và kiến thức dự án**.  
 
-1. **Edit trực tiếp trên GitHub**
-- Vào tab **Wiki**, chọn trang → nhấn **Edit** → sửa → **Save Page**
-- Không cần PR nếu edit trực tiếp.
+---
 
-2. **Edit bằng Git**
-- Wiki cũng là Git repo riêng:
+### Cách 1: Chỉnh sửa trực tiếp trên GitHub
+- Vào tab **Wiki** → chọn trang → nhấn **Edit** → sửa nội dung → **Save Page**.  
+- Thay đổi áp dụng ngay, **không cần branch**.  
+- Khuyến nghị: chỉ dùng cho các chỉnh sửa nhỏ (lỗi chính tả, bổ sung vài dòng).
+
+---
+
+### Cách 2: Chỉnh sửa bằng Git (khuyến nghị)
+- Clone wiki repo về máy:
 ```bash
 git clone https://github.com/cn01-trum-mobile/BTL-App-development.wiki.git
 ```
-- Tạo branch mới, sửa file .md, commit, push.
-- Khuyến nghị tạo PR nếu nhiều người cùng chỉnh sửa.
+- Tạo nhánh riêng để làm việc
+```bash
+git checkout -b <branch-name>
+```
+
+- Sửa các file `.md`, sau đó commit & push
+```bash
+git add .
+git commit -m "docs(<scope>): mô tả ngắn"
+git push origin <branch-name>
+```
+
+- Khi muốn chính thức áp dụng, merge nhánh vào `master`:
+```bash
+git checkout main
+git merge <branch-name>
+git push origin master
+```
+
+- Cuối cùng, xóa nhánh cũ để repo gọn gàng:
+```bash
+git branch -d <branch-name>
+git push origin --delete <branch-name>
+```
 
 3. **Nguyên tắc chỉnh sửa**
-- Tuân thủ Markdown, viết rõ ràng, dễ hiểu.
-- Thêm links nếu liên quan tới issue hoặc page khác.
-- Nếu xóa hoặc đổi lớn → ghi chú lý do trong commit hoặc PR.
+- Viết bằng Markdown chuẩn, trình bày rõ ràng, dễ đọc.
+- Khi thay đổi cấu trúc lớn, hãy mô tả rõ trong commit để người khác nắm được.
+- Nên đồng bộ nhánh với `master` thường xuyên để tránh xung đột.
 
 Cảm ơn bạn đã đóng góp! 🎉
