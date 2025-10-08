@@ -2,7 +2,7 @@ version: 2
 updates:
   # 1. Quét npm/yarn packages
   - package-ecosystem: "npm"
-    directory: "/Leccap" # thư mục gốc
+    directory: "/demo-app" # thư mục gốc
     schedule:
       interval: "weekly" # có thể chọn daily / weekly / monthly
     open-pull-requests-limit: 5
