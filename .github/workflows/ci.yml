@@ -19,12 +19,12 @@ jobs:
               with:
                   node-version: 20.19.4
                   cache: "npm"
-                  cache-dependency-path: demo-app/package-lock.json
+                  cache-dependency-path: CapdeCours/package-lock.json
 
             - name: Install dependencies
               run: npm ci
-              working-directory: demo-app
+              working-directory: CapdeCours
 
             - name: Lint
               run: npm run lint
-              working-directory: demo-app
+              working-directory: CapdeCours
