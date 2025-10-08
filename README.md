@@ -1,5 +1,6 @@
 # 📸 Quản lý ảnh chụp bài giảng cho Sinh viên
-
+> 💬 **"Chụp nhanh – Lưu gọn – Tìm dễ"**
+> 
 ## 🎯 Tổng quan
 Sinh viên đi học thường có thói quen chụp ảnh bài giảng trên bảng hoặc slide chiếu. Tuy nhiên, các ảnh này thường không được sắp xếp khoa học, dẫn đến tình trạng khó tìm lại khi cần ôn tập.  
 Ứng dụng này ra đời nhằm giải quyết *nỗi đau (pain point)* đó: giúp sinh viên **chụp nhanh – lưu gọn – tìm dễ**.
