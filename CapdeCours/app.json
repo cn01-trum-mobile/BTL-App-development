@@ -40,7 +40,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -49,7 +50,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c4b3c0eb-0466-45bd-b243-4975781391ff"
+        "projectId": "e220bee9-9ba6-4af5-aeb5-06ad2058c382"
       }
     },
     "owner": "vck2004"
