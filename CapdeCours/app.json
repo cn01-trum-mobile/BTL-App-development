@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "demo-app",
-    "slug": "demo-app",
+    "name": "CapDeCours",
+    "slug": "cap-de-cours",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -20,7 +20,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.vck2004.demoapp"
+      "package": "com.vck2004.CapDeCours"
     },
     "web": {
       "output": "static",
