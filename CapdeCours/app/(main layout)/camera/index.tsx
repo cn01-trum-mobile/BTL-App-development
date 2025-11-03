@@ -1,24 +1,32 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions, CameraCapturedPicture } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { router } from 'expo-router';
+import { useBottomAction } from '@/context/NavActionContext';
+import { ScanLine } from 'lucide-react-native';
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
-  const [type, setType] = useState<CameraType>('back');
-  const cameraRef = useRef<CameraView>(null);
-  const [photo, setPhoto] = useState<CameraCapturedPicture | null>(null);
+  const cameraRef = useRef<CameraView | null>(null);
+  const { setAction, resetAction } = useBottomAction();
 
-  const takePhoto = async () => {
-    console.log('press');
-    if (cameraRef.current) {
-      const picture = await cameraRef.current.takePictureAsync();
-      // router.push({ pathname: '/camera/imagePreview', params: { uri: picture.uri } });
-    }
-  };
+  useEffect(() => {
+    setAction({
+      icon: <ScanLine size={24} color="rgba(66,22,13,0.75)" strokeWidth={2} />,
+      onPress: async () => {
+        if (cameraRef.current) {
+          const photo = await cameraRef.current.takePictureAsync();
+          router.replace({ pathname: '/camera/imagePreview', params: { uri: photo.uri } });
+        }
+      },
+    });
+    return resetAction;
+  }, []);
+
   // const retakePhoto = () => setPhoto(null);
 
   if (!permission) {
-    return <View></View>;
+    return <View />;
   }
   if (!permission.granted) {
     return (
@@ -34,9 +42,5 @@ export default function CameraScreen() {
   //   setType((current) => (current === 'back' ? 'front' : 'back'));
   // }
 
-  return (
-    <View className="flex-1">
-      <CameraView style={{ flex: 1 }} facing={type} autofocus="on" />
-    </View>
-  );
+  return <CameraView style={{ flex: 1 }} ref={cameraRef} facing={'back'} autofocus="on" />;
 }

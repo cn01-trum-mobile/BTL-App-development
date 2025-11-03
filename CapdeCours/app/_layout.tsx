@@ -5,6 +5,7 @@ import '@/global.css';
 import { useEffect } from 'react';
 import * as NavigationBar from 'expo-navigation-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BottomActionProvider } from '@/context/NavActionContext';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -20,9 +21,11 @@ export default function RootLayout() {
     return <View></View>;
   }
   return (
-    <SafeAreaView className="flex-1 bg-[#FFF8E3]">
-      <StatusBar hidden={true} />
-      <Slot></Slot>
-    </SafeAreaView>
+    <BottomActionProvider>
+      <SafeAreaView className="flex-1 bg-[#FFF8E3]">
+        <StatusBar hidden={true} />
+        <Slot></Slot>
+      </SafeAreaView>
+    </BottomActionProvider>
   );
 }
