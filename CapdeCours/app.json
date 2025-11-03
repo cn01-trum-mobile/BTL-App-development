@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "CapDeCours",
-    "slug": "cap-de-cours",
+    "slug": "demo-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

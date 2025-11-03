@@ -5,10 +5,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#8D7162',
+        primary: 'rgba(66,22,13,0.75)',
       },
       fontFamily: {
         sunshiney: ['sunshiney'],
+        sen: ['sen'],
+        poppins: ['poppins'],
       },
     },
   },

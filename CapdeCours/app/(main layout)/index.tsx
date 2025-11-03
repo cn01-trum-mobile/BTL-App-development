@@ -1,9 +1,8 @@
-import BottomNav from '@/components/BottomNav';
 import { getData } from '@/utils/asyncStorage';
 import { router } from 'expo-router';
 import { CalendarPlus } from 'lucide-react-native';
 import React, { useEffect } from 'react';
-import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 export default function Home() {
   useEffect(() => {
@@ -26,11 +25,8 @@ export default function Home() {
   ];
 
   return (
-    <View className="flex-1 bg-[#FFF8E3] pb-24 items-center">
-      <ScrollView className="w-full max-w-[375px] px-5 pt-12" showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <Text className="font-sunshiney text-[24px] font-semibold text-[#32343E] opacity-80 text-center mb-8">CapdeCours</Text>
-
+    <View className="flex-1 items-center">
+      <ScrollView className="w-full max-w-[375px] pt-12" showsVerticalScrollIndicator={false}>
         {/* Calendar Icon */}
         <View className="relative mb-8">
           <View className="absolute right-0 -top-10">
@@ -51,7 +47,7 @@ export default function Home() {
             <View className="h-[62px] relative">
               <View className="absolute inset-0 flex-row justify-between px-1.5">
                 {days.map((item, index) => (
-                  <View key={index} className={`w-9 h-full rounded-lg items-center justify-center ${item.active ? 'bg-[rgba(66,22,13,0.75)]' : ''}`}>
+                  <View key={index} className={`w-9 h-full rounded-lg items-center justify-center ${item.active ? 'bg-primary' : ''}`}>
                     <Text className={`text-[12px] font-montserrat font-bold ${item.active ? 'text-white' : 'text-[#8A8BB1]'}`}>{item.date}</Text>
                   </View>
                 ))}
@@ -61,20 +57,18 @@ export default function Home() {
         </View>
 
         {/* Section */}
-        <View className="mb-6">
+        {/* <View className="mb-6">
           <Text className="text-[13.5px] font-sen font-semibold text-[rgba(66,22,13,0.75)] mb-4 tracking-wide">Classify unorganized images now!</Text>
 
           <View className="flex-row gap-4">
-            {[require('../assets/images/sample.png'), require('../assets/images/sample.png')].map((src, i) => (
+            {[require('@/assets/images/sample.png'), require('@/assets/images/sample.png')].map((src, i) => (
               <TouchableOpacity key={i} className="rounded-lg overflow-hidden h-[201px] flex-1" activeOpacity={0.8}>
                 <Image source={src} className="w-full h-full" resizeMode="cover" />
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </View> */}
       </ScrollView>
-
-      <BottomNav />
     </View>
   );
 }

@@ -1,5 +1,3 @@
-// app/Onboarding.tsx or src/screens/Onboarding.tsx
-
 import { storeData } from '@/utils/asyncStorage';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -15,22 +13,22 @@ const screens: OnboardingScreen[] = [
   {
     title: 'In-App Camera',
     description: "Use our dedicated camera. Photos are saved directly to our system, keeping them separate from your phone's personal photo gallery.",
-    image: require('../../assets/images/onboard1.png'),
+    image: require('@/assets/images/onboard1.png'),
   },
   {
     title: 'Sync Timetable',
     description: 'Connect with your Google Calendar. This allows the app to recognize the subject and automatically organize your photos.',
-    image: require('../../assets/images/onboard2.png'),
+    image: require('@/assets/images/onboard2.png'),
   },
   {
     title: 'Automatic Sorting',
     description: 'Thanks to your synced timetable, every photo is automatically tagged by Subject and Lecture. Just snap and forget about manual sorting!',
-    image: require('../../assets/images/onboard3.png'),
+    image: require('@/assets/images/onboard3.png'),
   },
   {
     title: 'Gallery & Search',
     description: 'Access a dedicated library where everything is neatly sorted. Easily search and review material by subject, preparing you for any exam.',
-    image: require('../../assets/images/onboard4.png'),
+    image: require('@/assets/images/onboard4.png'),
   },
 ];
 
@@ -54,7 +52,7 @@ export default function Onboarding() {
   const screen = screens[currentScreen];
 
   return (
-    <View className="flex-1 bg-[#FFF8E3] items-center justify-center p-4">
+    <View className="flex-1 items-center justify-center p-4">
       <View className="w-full max-w-[375px] h-[812px] relative flex-col items-center">
         {/* App Title */}
         <Text className="font-sunshiney text-[24px] font-semibold text-[#32343E] opacity-80 text-center mt-12 mb-8">CapdeCours</Text>
@@ -78,11 +76,7 @@ export default function Onboarding() {
           </View>
 
           {/* Buttons */}
-          <TouchableOpacity
-            onPress={handleNext}
-            activeOpacity={0.9}
-            className="w-full h-[62px] rounded-xl bg-[rgba(66,22,13,0.75)] items-center justify-center mb-4"
-          >
+          <TouchableOpacity onPress={handleNext} activeOpacity={0.9} className="w-full h-[62px] rounded-xl bg-primary items-center justify-center mb-4">
             <Text className="text-white font-sen text-[14px] font-bold uppercase opacity-80">{currentScreen === screens.length - 1 ? 'Start' : 'Next'}</Text>
           </TouchableOpacity>
 
