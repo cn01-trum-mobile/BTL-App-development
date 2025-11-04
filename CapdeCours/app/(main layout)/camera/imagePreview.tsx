@@ -48,13 +48,13 @@ export default function ImagePreviewScreen() {
 
   return (
     <View className="flex-1">
-      <Image source={{ uri }} className="flex-1" />
+      <Image source={{ uri }} className="flex-1 rounded-xl overflow-hidden" />
       <Alert
         message={message}
         visible={visible}
         onDismiss={() => {
           setVisible(false);
-          router.replace('/');
+          router.replace('/camera');
         }}
       />
     </View>

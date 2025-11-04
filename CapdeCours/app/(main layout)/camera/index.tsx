@@ -42,5 +42,5 @@ export default function CameraScreen() {
   //   setType((current) => (current === 'back' ? 'front' : 'back'));
   // }
 
-  return <CameraView style={{ flex: 1 }} ref={cameraRef} facing={'back'} autofocus="on" />;
+  return <CameraView style={{ flex: 1, borderRadius: 12 }} ref={cameraRef} facing={'back'} autofocus="on" />;
 }

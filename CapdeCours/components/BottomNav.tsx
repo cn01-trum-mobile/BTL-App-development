@@ -24,10 +24,10 @@ export default function BottomNav() {
           <Text className="text-[12px] font-poppins text-[#676D75]">Home</Text>
         </TouchableOpacity>
 
-        {/* Search */}
+        {/* Gallery */}
         <TouchableOpacity
           onPress={() => {
-            router.push('/onboarding');
+            router.replace('/gallery');
           }}
           activeOpacity={0.8}
           className="flex-1 items-center gap-1.5"
