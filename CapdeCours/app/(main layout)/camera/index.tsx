@@ -1,13 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useBottomAction } from '@/context/NavActionContext';
 import { ScanLine } from 'lucide-react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { scheduleOnRN } from 'react-native-worklets';
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
+  const [type, setType] = useState<CameraType>('back');
+  // const [zoom, setZoom] = useState(0);
+  // const [lastZoom, setLastZoom] = useState(0);
   const { setAction, resetAction } = useBottomAction();
 
   useEffect(() => {
@@ -15,15 +20,25 @@ export default function CameraScreen() {
       icon: <ScanLine size={24} color="rgba(66,22,13,0.75)" strokeWidth={2} />,
       onPress: async () => {
         if (cameraRef.current) {
-          const photo = await cameraRef.current.takePictureAsync();
-          router.replace({ pathname: '/camera/imagePreview', params: { uri: photo.uri } });
+          const photo = await cameraRef.current.takePictureAsync({ exif: true });
+          router.replace({ pathname: '/camera/imagePreview', params: { uri: photo.uri, rotation: photo.exif.Orientation } });
         }
       },
     });
     return resetAction;
   }, []);
 
-  // const retakePhoto = () => setPhoto(null);
+  const swipeGesture = Gesture.Pan().onEnd((event) => {
+    const { translationX } = event;
+    if (translationX < -80 || translationX > 80) {
+      scheduleOnRN(setType, type === 'front' ? 'back' : 'front');
+    }
+  });
+  // const pinchGesture = Gesture.Pinch().onChange((event) => {
+  //   if (event.velocity < 0) scheduleOnRN(setLastZoom, Math.min(Math.max(lastZoom - event.scale / 200, 0), 1));
+  //   else if (event.velocity > 0) scheduleOnRN(setLastZoom, Math.min(Math.max(lastZoom + event.scale / 200, 0), 1));
+  //   scheduleOnRN(setZoom, lastZoom);
+  // });
 
   if (!permission) {
     return <View />;
@@ -38,9 +53,10 @@ export default function CameraScreen() {
       </View>
     );
   }
-  // function toggleCameraFacing() {
-  //   setType((current) => (current === 'back' ? 'front' : 'back'));
-  // }
 
-  return <CameraView style={{ flex: 1, borderRadius: 12 }} ref={cameraRef} facing={'back'} autofocus="on" />;
+  return (
+    <GestureDetector gesture={Gesture.Simultaneous(swipeGesture)}>
+      <CameraView style={{ flex: 1, borderRadius: 12 }} ref={cameraRef} facing={type} autofocus="on" mirror={true} />
+    </GestureDetector>
+  );
 }

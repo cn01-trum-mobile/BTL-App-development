@@ -40,15 +40,6 @@ export default function SessionFolderScreen() {
     { id: 'session-1', title: 'Session 1 - 01/01/2025' },
   ];
 
-  const photo1s = [
-    'https://api.builder.io/api/v1/image/assets/TEMP/132815e7ef6fa1900f2c7340c468cc1cbc527a97?width=210',
-    'https://api.builder.io/api/v1/image/assets/TEMP/c1b66f9aa6db706b15fe08670befb0a1007ca753?width=210',
-    'https://api.builder.io/api/v1/image/assets/TEMP/3ad58b19ad17852e1f476625f00b0766f0d346ae?width=210',
-    'https://api.builder.io/api/v1/image/assets/TEMP/d223b52acfc20eee92b7fd60b80537b8c62a9f37?width=210',
-    'https://api.builder.io/api/v1/image/assets/TEMP/e6e71e20a5075073b7582d087e25835455d9ea14?width=210',
-    'https://api.builder.io/api/v1/image/assets/TEMP/abd9af2e4c8a9aace65446c8719e38e7407959f5?width=210',
-  ];
-
   return (
     <View className="flex-1 px-5 pt-2">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -92,7 +83,7 @@ export default function SessionFolderScreen() {
                 {isExpanded && (
                   <View className="flex-row flex-wrap gap-3 mt-4 mb-6">
                     {photos.map((photo, index) => (
-                      <View key={index} className="w-[32%] aspect-square rounded-2xl overflow-hidden">
+                      <View key={index} className="w-[30%] aspect-square rounded-2xl overflow-hidden">
                         <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
                       </View>
                     ))}

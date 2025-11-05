@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import * as NavigationBar from 'expo-navigation-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomActionProvider } from '@/context/NavActionContext';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -22,10 +23,12 @@ export default function RootLayout() {
   }
   return (
     <BottomActionProvider>
-      <SafeAreaView className="flex-1 bg-[#FFF8E3]">
-        <StatusBar hidden={true} />
-        <Slot></Slot>
-      </SafeAreaView>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaView className="flex-1 bg-[#FFF8E3]">
+          <StatusBar hidden={true} />
+          <Slot></Slot>
+        </SafeAreaView>
+      </GestureHandlerRootView>
     </BottomActionProvider>
   );
 }
