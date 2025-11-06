@@ -1,80 +1,71 @@
-import BottomNav from '@/components/BottomNav';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, Image } from 'react-native';
 import { getData } from '@/utils/asyncStorage';
 import { router } from 'expo-router';
-import { CalendarPlus } from 'lucide-react-native';
-import React, { useEffect } from 'react';
-import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 export default function Home() {
+  const scale = useSharedValue(0.05);
+  const opacity = useSharedValue(0);
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+  const opacity2 = useSharedValue(0);
+  const animatedStyle2 = useAnimatedStyle(() => ({
+    opacity: opacity2.value,
+  }));
+  const [zoom, setZoom] = useState(true);
+  const [showLogo, setShowLogo] = useState(false);
+
   useEffect(() => {
-    checkFirstTimeOpen();
+    opacity.value = withTiming(1, { duration: 150 });
+    const timeout1 = setTimeout(() => {
+      scale.value = withTiming(2, { duration: 700, easing: Easing.in(Easing.ease) });
+    }, 150);
+    const timeout2 = setTimeout(() => {
+      setZoom(false);
+      setShowLogo(true);
+    }, 950);
+    const timeout3 = setTimeout(() => {
+      opacity2.value = withTiming(1, { duration: 800, easing: Easing.in(Easing.ease) });
+    }, 1750);
+    const timeout4 = setTimeout(() => {
+      checkFirstTimeOpen();
+    }, 3750);
+
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      clearTimeout(timeout3);
+      clearTimeout(timeout4);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const checkFirstTimeOpen = async () => {
+
+  const checkFirstTimeOpen = useCallback(async () => {
     let onboarded = await getData('onboarded');
     if (onboarded !== '1') {
       router.replace('/onboarding');
+    } else {
+      router.replace('/camera');
     }
-  };
-
-  const days = [
-    { day: 'Mo', date: '7' },
-    { day: 'Tu', date: '8' },
-    { day: 'We', date: '9', active: true },
-    { day: 'Th', date: '10' },
-    { day: 'Fri', date: '11' },
-    { day: 'Sa', date: '12' },
-  ];
+  }, []);
 
   return (
-    <View className="flex-1 bg-[#FFF8E3] pb-24 items-center">
-      <ScrollView className="w-full max-w-[375px] px-5 pt-12" showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <Text className="font-sunshiney text-[24px] font-semibold text-[#32343E] opacity-80 text-center mb-8">CapdeCours</Text>
-
-        {/* Calendar Icon */}
-        <View className="relative mb-8">
-          <View className="absolute right-0 -top-10">
-            <CalendarPlus size={30} color="rgba(66,22,13,0.75)" strokeWidth={1.5} />
-          </View>
+    <View className="flex-1">
+      {zoom && (
+        <View className="flex-1 bg-[#8D7162] scale-150 justify-center">
+          <Animated.View className="bg-[#FFF8E3] rounded-full aspect-square" style={animatedStyle}></Animated.View>
         </View>
-        {/* Days Bar */}
-        <View className="bg-[#FFE5B1] rounded-xl py-2 px-2 mb-8">
-          <View>
-            <View className="flex-row justify-between items-start mb-2 px-1.5">
-              {days.map((item, index) => (
-                <View key={index} className="w-9 items-center">
-                  <Text className={`text-[12px] font-montserrat font-bold ${item.active ? 'text-white' : 'text-[#3A3C6A]'}`}>{item.day}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View className="h-[62px] relative">
-              <View className="absolute inset-0 flex-row justify-between px-1.5">
-                {days.map((item, index) => (
-                  <View key={index} className={`w-9 h-full rounded-lg items-center justify-center ${item.active ? 'bg-[rgba(66,22,13,0.75)]' : ''}`}>
-                    <Text className={`text-[12px] font-montserrat font-bold ${item.active ? 'text-white' : 'text-[#8A8BB1]'}`}>{item.date}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Section */}
-        <View className="mb-6">
-          <Text className="text-[13.5px] font-sen font-semibold text-[rgba(66,22,13,0.75)] mb-4 tracking-wide">Classify unorganized images now!</Text>
-
-          <View className="flex-row gap-4">
-            {[require('../assets/images/sample.png'), require('../assets/images/sample.png')].map((src, i) => (
-              <TouchableOpacity key={i} className="rounded-lg overflow-hidden h-[201px] flex-1" activeOpacity={0.8}>
-                <Image source={src} className="w-full h-full" resizeMode="cover" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </ScrollView>
-
-      <BottomNav />
+      )}
+      {showLogo && (
+        <Animated.View className="flex-1 justify-center items-center" style={animatedStyle2}>
+          <Image source={require('@/assets/images/logo.png')} />
+          <Text className="font-sunshiney text-[38px] font-semibold text-[#32343E] opacity-80 text-center mb-2">CapdeCours</Text>
+          <Text className="font-sen text-[16px] text-[#AC3C00] opacity-80 text-center mb-5">Snap Fast. Save Smart. Find Easy.</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }

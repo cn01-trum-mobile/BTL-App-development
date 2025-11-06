@@ -1,50 +1,64 @@
-// components/BottomNav.tsx
-
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { Clock, Home, Search, User } from 'lucide-react-native';
-import React from 'react';
+import { useBottomAction } from '@/context/NavActionContext';
+import { router, usePathname } from 'expo-router';
+import { Clock, Home, Image, User } from 'lucide-react-native';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 export default function BottomNav() {
-  const navigation = useNavigation();
-  const route = useRoute();
-
-  const currentRoute = route.name;
-
+  const currentRoute = usePathname();
   const isActive = (name: string) => currentRoute === name;
+  const { action } = useBottomAction();
 
   return (
-    <View className="absolute bottom-0 left-0 right-0 bg-transparent px-3 pb-2 items-center">
-      <View className="flex-row justify-center items-end w-full max-w-[393px]">
+    <View className="bottom-0 left-0 right-0 bg-[#FFF8E3] pb-2 pt-4 items-center">
+      <View className="flex-row justify-center items-end w-full">
         {/* Home */}
-        <TouchableOpacity onPress={() => navigation.navigate('Home' as never)} activeOpacity={0.8} className="flex-1 items-center gap-1.5">
-          <Home size={24} color={isActive('Home') ? '#42160D' : '#676D75'} strokeWidth={isActive('Home') ? 2 : 1.5} />
+        <TouchableOpacity
+          onPress={() => {
+            router.replace('/home');
+          }}
+          activeOpacity={0.8}
+          className="flex-1 items-center gap-1.5"
+        >
+          <Home size={24} color={isActive('/home') ? '#A44063' : '#676D75'} strokeWidth={isActive('/') ? 2 : 1.5} />
           <Text className="text-[12px] font-poppins text-[#676D75]">Home</Text>
         </TouchableOpacity>
 
-        {/* Search */}
-        <TouchableOpacity onPress={() => navigation.navigate('Search' as never)} activeOpacity={0.8} className="flex-1 items-center gap-1.5">
-          <Search size={24} color="#676D75" strokeWidth={1.5} />
-          <Text className="text-[12px] font-poppins text-[#676D75]">Search</Text>
+        {/* Gallery */}
+        <TouchableOpacity
+          onPress={() => {
+            router.replace('/gallery');
+          }}
+          activeOpacity={0.8}
+          className="flex-1 items-center gap-1.5"
+        >
+          <Image size={24} color={isActive('/gallery') || isActive('/sessionFolders') ? '#A44063' : '#676D75'} strokeWidth={isActive('') ? 2 : 1.5} />
+          <Text className="text-[12px] font-poppins text-[#676D75]">Gallery</Text>
         </TouchableOpacity>
 
         {/* Camera Button */}
-        <TouchableOpacity onPress={() => navigation.navigate('Camera' as never)} activeOpacity={0.8} className="flex-1 items-center -mt-2">
-          <View className="p-3.5 rounded-full border-4 border-[rgba(66,22,13,0.75)] bg-white">
-            {/* You can replace this SVG with a lucide-react-native icon if you like */}
-            <Home size={24} color="rgba(66,22,13,0.75)" strokeWidth={2} />
+        <TouchableOpacity onPress={action.onPress} activeOpacity={0.8} className="flex-1 items-center -mt-2">
+          <View
+            className={`p-3.5 rounded-full border-4 ${isActive('/camera/imagePreview') ? 'bg-primary border-[rgba(66,22,13,0)]' : 'bg-white border-primary'}`}
+          >
+            {action.icon}
           </View>
         </TouchableOpacity>
 
         {/* Schedule */}
-        <TouchableOpacity onPress={() => navigation.navigate('Schedule' as never)} activeOpacity={0.8} className="flex-1 items-center gap-1.5">
-          <Clock size={24} color="#676D75" strokeWidth={1.5} />
+        <TouchableOpacity
+          onPress={() => {
+            router.replace('/onboarding');
+          }}
+          activeOpacity={0.8}
+          className="flex-1 items-center gap-1.5"
+        >
+          <Clock size={24} color={isActive('') ? '#A44063' : '#676D75'} strokeWidth={isActive('') ? 2 : 1.5} />
           <Text className="text-[12px] font-poppins text-[#676D75]">Schedule</Text>
         </TouchableOpacity>
 
         {/* Profile */}
-        <TouchableOpacity onPress={() => navigation.navigate('Profile' as never)} activeOpacity={0.8} className="flex-1 items-center gap-1.5">
-          <User size={24} color="#676D75" strokeWidth={1.5} />
+        <TouchableOpacity onPress={() => {}} activeOpacity={0.8} className="flex-1 items-center gap-1.5">
+          <User color={isActive('') ? '#A44063' : '#676D75'} strokeWidth={isActive('') ? 2 : 1.5} />
           <Text className="text-[12px] font-poppins text-[#676D75]">Profile</Text>
         </TouchableOpacity>
       </View>
