@@ -26,6 +26,7 @@ export default function CameraScreen() {
       },
     });
     return resetAction;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const swipeGesture = Gesture.Pan().onEnd((event) => {

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "CapDeCours",
-    "slug": "demo-app",
+    "slug": "capdecours",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -50,9 +50,15 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e220bee9-9ba6-4af5-aeb5-06ad2058c382"
+        "projectId": "145725e0-99a3-48bd-8a8e-e03da7d4cd16"
       }
     },
-    "owner": "vck2004"
+    "owner": "vck2004",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/145725e0-99a3-48bd-8a8e-e03da7d4cd16"
+    }
   }
 }

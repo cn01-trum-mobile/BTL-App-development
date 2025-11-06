@@ -20,19 +20,27 @@ export default function Home() {
 
   useEffect(() => {
     opacity.value = withTiming(1, { duration: 150 });
-    setTimeout(() => {
+    const timeout1 = setTimeout(() => {
       scale.value = withTiming(2, { duration: 700, easing: Easing.in(Easing.ease) });
     }, 150);
-    setTimeout(() => {
+    const timeout2 = setTimeout(() => {
       setZoom(false);
       setShowLogo(true);
     }, 950);
-    setTimeout(() => {
+    const timeout3 = setTimeout(() => {
       opacity2.value = withTiming(1, { duration: 800, easing: Easing.in(Easing.ease) });
     }, 1750);
-    setTimeout(() => {
+    const timeout4 = setTimeout(() => {
       checkFirstTimeOpen();
     }, 3750);
+
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      clearTimeout(timeout3);
+      clearTimeout(timeout4);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkFirstTimeOpen = useCallback(async () => {

@@ -48,6 +48,7 @@ export default function ImagePreviewScreen() {
       onPress: savePhoto,
     });
     return resetAction;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uri]);
 
   const savePhoto = () => {
