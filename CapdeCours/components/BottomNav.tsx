@@ -6,7 +6,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 export default function BottomNav() {
   const currentRoute = usePathname();
   const isActive = (name: string) => currentRoute === name;
-  const { action } = useBottomAction();
+  const { action, disabled } = useBottomAction();
 
   return (
     <View className="bottom-0 left-0 right-0 bg-[#FFF8E3] pb-2 pt-4 items-center">
@@ -36,7 +36,7 @@ export default function BottomNav() {
         </TouchableOpacity>
 
         {/* Camera Button */}
-        <TouchableOpacity onPress={action.onPress} activeOpacity={0.8} className="flex-1 items-center -mt-2">
+        <TouchableOpacity disabled={disabled} onPress={action.onPress} activeOpacity={0.8} className="flex-1 items-center -mt-2">
           <View
             className={`p-3.5 rounded-full border-4 ${isActive('/camera/imagePreview') ? 'bg-primary border-[rgba(66,22,13,0)]' : 'bg-white border-primary'}`}
           >
