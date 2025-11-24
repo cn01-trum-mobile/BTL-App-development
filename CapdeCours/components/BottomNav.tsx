@@ -57,7 +57,13 @@ export default function BottomNav() {
         </TouchableOpacity>
 
         {/* Profile */}
-        <TouchableOpacity onPress={() => {}} activeOpacity={0.8} className="flex-1 items-center gap-1.5">
+        <TouchableOpacity
+          onPress={() => {
+            router.replace('/login');
+          }}
+          activeOpacity={0.8}
+          className="flex-1 items-center gap-1.5"
+        >
           <User color={isActive('') ? '#A44063' : '#676D75'} strokeWidth={isActive('') ? 2 : 1.5} />
           <Text className="text-[12px] font-poppins text-[#676D75]">Profile</Text>
         </TouchableOpacity>
