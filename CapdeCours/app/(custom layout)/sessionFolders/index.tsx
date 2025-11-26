@@ -81,9 +81,9 @@ export default function SessionFolderScreen() {
                 </TouchableOpacity>
 
                 {isExpanded && (
-                  <View className="flex-row flex-wrap gap-3 mt-4 mb-6">
+                  <View className="flex-row flex-wrap mt-4 mb-6">
                     {photos.map((photo, index) => (
-                      <View key={index} className="w-[30%] aspect-square rounded-2xl overflow-hidden">
+                      <View key={index} className="w-[30%] m-[1.5%] aspect-square rounded-2xl overflow-hidden">
                         <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
                       </View>
                     ))}
