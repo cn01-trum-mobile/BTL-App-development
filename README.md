@@ -73,4 +73,5 @@ Sinh viên đi học thường có thói quen chụp ảnh bài giảng trên b�
 
 
 [![React Native CI - Test, Report & SonarCloud](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml/badge.svg)](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml)
+
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=cn01-trum-mobile_BTL-App-development)](https://sonarcloud.io/summary/new_code?id=cn01-trum-mobile_BTL-App-development)
