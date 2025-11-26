@@ -64,10 +64,12 @@ Sinh viên đi học thường có thói quen chụp ảnh bài giảng trên b�
 
 ---
 
-[![React Native CI - Test, Report & SonarCloud](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml/badge.svg)](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml)
-
 ## 👨‍🎓 Đối tượng thử nghiệm
 - Nhóm sinh viên Bách Khoa (giai đoạn đầu).  
 - Mở rộng ra toàn bộ học sinh/sinh viên ở các trường khác.  
 
 ---
+
+
+
+[![React Native CI - Test, Report & SonarCloud](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml/badge.svg)](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml)
