@@ -83,9 +83,19 @@ export default function SessionFolderScreen() {
                 {isExpanded && (
                   <View className="flex-row flex-wrap gap-3 mt-4 mb-6">
                     {photos.map((photo, index) => (
-                      <View key={index} className="w-[30%] aspect-square rounded-2xl overflow-hidden">
+                      <TouchableOpacity
+                        key={index}
+                        activeOpacity={0.8}
+                        className="w-[30%] aspect-square rounded-2xl overflow-hidden"
+                        onPress={() =>
+                          router.push({
+                            pathname: '/image-details',
+                            params: { uri: photo.uri, name: photo.name || `photo-${index}` },
+                          })
+                        }
+                      >
                         <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 )}
