@@ -42,7 +42,7 @@ export default function CameraScreen() {
     .onStart(() => scheduleOnRN(setShowZoom, true))
     .onUpdate((event) => {
       let nextZoom = lastZoom + (event.scale - 1) / 5; // tweak sensitivity here
-      console.log(nextZoom);
+      // console.log(nextZoom);
       if (nextZoom < 0) nextZoom = 0;
       if (nextZoom > 1) nextZoom = 1;
       scheduleOnRN(setZoom, nextZoom);

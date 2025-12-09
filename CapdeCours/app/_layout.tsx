@@ -75,12 +75,6 @@ export default Sentry.wrap(function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaView className="flex-1 bg-[#FFF8E3]">
           <StatusBar hidden={true} />
-          <Button
-            title="Try!"
-            onPress={() => {
-              Sentry.captureException(new Error('First error'));
-            }}
-          />
           <Slot></Slot>
         </SafeAreaView>
       </GestureHandlerRootView>

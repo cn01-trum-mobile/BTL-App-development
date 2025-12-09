@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import * as Calendar from 'expo-calendar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -96,6 +96,7 @@ export default function CalendarSelectScreen({ navigation }: any) {
       await AsyncStorage.setItem('USER_CALENDAR_IDS', JSON.stringify(idsArray));
       Alert.alert('Thành công', `Đã cập nhật ${idsArray.length} nguồn lịch.`);
       // navigation.navigate('Home'); // Ví dụ chuyển trang
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       Alert.alert('Lỗi', 'Không thể lưu dữ liệu');
     } finally {
