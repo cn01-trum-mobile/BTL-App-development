@@ -1,6 +1,6 @@
 import { useFonts } from 'expo-font';
 import { Slot, useNavigationContainerRef } from 'expo-router';
-import { Button, StatusBar, View } from 'react-native';
+import { StatusBar, View } from 'react-native';
 import '@/global.css';
 import { useEffect } from 'react';
 import * as NavigationBar from 'expo-navigation-bar';
@@ -75,6 +75,12 @@ export default Sentry.wrap(function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaView className="flex-1 bg-[#FFF8E3]">
           <StatusBar hidden={true} />
+          {/* <Button
+            title="Try!"
+            onPress={() => {
+              Sentry.captureException(new Error('First error'));
+            }}
+          /> */}
           <Slot></Slot>
         </SafeAreaView>
       </GestureHandlerRootView>

@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } fr
 import * as Calendar from 'expo-calendar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import BottomNav from '@/components/BottomNav';
 
 export default function CalendarSelectScreen({ navigation }: any) {
   // Set mặc định là rỗng
@@ -40,7 +39,7 @@ export default function CalendarSelectScreen({ navigation }: any) {
           // cal.source.type === 'LOCAL' thường là lịch trong máy không đồng bộ cloud
           const isGoogleAccount = cal.source.type === 'com.google';
 
-          const isAndroid = isGoogleAccount && cal.isPrimary;
+          const isAndroid = isGoogleAccount;
 
           const isIOS = cal.source?.type?.toLowerCase() === 'caldav' && cal.source?.name?.toLowerCase().includes('gmail') && cal.allowsModifications === true;
           return isAndroid || isIOS;
@@ -106,11 +105,6 @@ export default function CalendarSelectScreen({ navigation }: any) {
 
   return (
     <View className="flex-1 bg-[#FFF8E3] flex-col items-center pt-2 px-5">
-      {/* Title */}
-      <View className="w-full justify-center pb-4 border-b border-gray-100">
-        <Text className="font-sunshiney text-[24px] font-semibold text-[#32343E] opacity-80 text-center">CapdeCours</Text>
-      </View>
-
       {/* Header */}
       <View className="mt-8 mb-6 items-center px-4">
         <Text className="text-[24px] font-sen font-bold text-[#AC3C00] text-center mb-2">Add your schedule</Text>
@@ -168,7 +162,6 @@ export default function CalendarSelectScreen({ navigation }: any) {
           )}
         </TouchableOpacity>
       </View>
-      <BottomNav />
     </View>
   );
 }

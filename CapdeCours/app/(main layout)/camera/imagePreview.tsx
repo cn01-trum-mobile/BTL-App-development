@@ -19,7 +19,7 @@ import { BookOpen, BookText, Check, Download, X } from 'lucide-react-native';
 import { Alert } from '@/components/Alert';
 import * as Calendar from 'expo-calendar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { endOfDay, startOfDay } from 'date-fns';
+import { endOfDay, isWithinInterval, startOfDay } from 'date-fns';
 
 export default function ImagePreviewScreen() {
   const { uri, rotation } = useLocalSearchParams<{ uri: string; rotation: string }>();
@@ -30,24 +30,69 @@ export default function ImagePreviewScreen() {
   const [note, setNote] = useState('');
   const sideWay = ['1', '3', '2', '4'];
   const [events, setEvents] = useState<Calendar.Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const sanitizeFolderName = useCallback((name: string) => {
+    return name.replace(/[^a-z0-9]/gi, '_').trim();
+  }, []);
 
   const savePhoto = useCallback(() => {
     if (!uri) return;
+    const now = new Date();
+    // Check if "now" is inside any of the event time slots
+    const currentEvent = events.find((event) => {
+      const start = new Date(event.startDate);
+      const end = new Date(event.endDate);
+      return isWithinInterval(now, { start, end });
+    });
+
+    let subjectName = 'Unorganized'; // Default if no class is happening
+    let eventDetails = null;
+    if (currentEvent) {
+      subjectName = sanitizeFolderName(currentEvent.title);
+      eventDetails = {
+        id: currentEvent.id,
+        title: currentEvent.title,
+        calendarId: currentEvent.calendarId,
+        location: currentEvent.location,
+      };
+    }
     try {
-      const filename = uri.split('/').pop() ?? `photo_${Date.now()}.jpg`;
-      // Create File for source
-      const sourceFile = new File(uri);
-      // Destination directory
-      const destDir = new Directory(Paths.document, 'photos');
-      if (!destDir.exists) {
-        destDir.create({ intermediates: true });
+      const photosDir = new Directory(Paths.document, 'photos');
+      const subjectDir = new Directory(photosDir, subjectName);
+      // Create folder if it doesn't exist
+      if (!photosDir.exists) {
+        photosDir.create();
       }
-      // Destination file
-      const destFile = new File(destDir, filename);
-      // Copy source to destination
+      // Create folder if it doesn't exist
+      if (!subjectDir.exists) {
+        subjectDir.create();
+      }
+
+      // Define Files (Image & Metadata)
+      const timestamp = now.getTime();
+      const fileName = `IMG_${timestamp}.jpg`;
+      const jsonName = `IMG_${timestamp}.json`;
+
+      const sourceFile = new File(uri); // The temp photo
+      const destFile = new File(subjectDir, fileName); // The permanent photo
+      const jsonFile = new File(subjectDir, jsonName); // The note/metadata
+
       if (!destFile.exists) {
         sourceFile.copy(destFile);
       }
+      // Save the Metadata (Note)
+      const metadata = {
+        originalUri: uri,
+        createdAt: now.toISOString(),
+        note: note,
+        subject: subjectName,
+        event: eventDetails,
+      };
+
+      // Write the JSON content
+      jsonFile.write(JSON.stringify(metadata, null, 2));
+
       // Alert
       setAction({
         icon: <Check size={24} color={'white'} strokeWidth={2} />,
@@ -56,56 +101,48 @@ export default function ImagePreviewScreen() {
         },
       });
       setVisible(true);
-      setMessage(`Stored at folder\n"${destFile.uri}"`);
+      setMessage(`Saved to \n"${subjectName}"`);
     } catch (error) {
       console.error('Error saving photo:', error);
     }
-  }, [setAction, uri]);
+  }, [setAction, uri, events, note, sanitizeFolderName]);
 
+  // Fetch calendar
   const fetchCalendar = useCallback(async () => {
-    setAction({
-      icon: <ActivityIndicator size={'small'} color={'white'} className="p-0.5" />,
-      onPress: () => {},
-    });
-    await new Promise((resolve) => {
-      setTimeout(() => resolve('f'), 2000);
-    });
+    setIsLoading(true);
     try {
-      const { status } = await Calendar.requestCalendarPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('Permission missing in Preview Screen');
-        return;
-      }
-      // 1. Lấy danh sách lịch đã chọn từ bộ nhớ
       const storedIds = await AsyncStorage.getItem('USER_CALENDAR_IDS');
       if (!storedIds) {
         return;
       }
       const calendarIds = JSON.parse(storedIds);
-      // 2. Xác định thời gian bắt đầu và kết thúc của NGÀY ĐANG CHỌN
-      console.log(calendarIds);
       const date = new Date();
       const startDate = startOfDay(date);
       const endDate = endOfDay(date);
-      console.log(date, startDate, endDate);
-      // 3. Gọi API lấy sự kiện
-      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
       const fetchedEvents = await Calendar.getEventsAsync(calendarIds, startDate, endDate);
-      console.log(fetchedEvents);
-      // 4. Sắp xếp theo giờ tăng dần
-      // fetchedEvents.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-
-      // setEvents(fetchedEvents);
+      fetchedEvents.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      setEvents(fetchedEvents);
     } catch (error) {
       console.error('Lỗi lấy lịch:', error);
     } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) {
+      // Show Spinner
+      setAction({
+        icon: <ActivityIndicator size={'small'} color={'white'} className="p-0.5" />,
+        onPress: () => {},
+      });
+    } else {
       setAction({
         icon: <Download size={24} color={'white'} strokeWidth={2} />,
         onPress: savePhoto,
       });
     }
-  }, [setAction, savePhoto]);
-
+  }, [isLoading, savePhoto, setAction]);
   // const scale = useSharedValue(1);
   // const focalX = useSharedValue(0);
   // const focalY = useSharedValue(0);
@@ -137,7 +174,7 @@ export default function ImagePreviewScreen() {
   useEffect(() => {
     fetchCalendar();
     return resetAction;
-  }, [fetchCalendar, uri, resetAction]);
+  }, [fetchCalendar, resetAction]);
 
   return (
     <TouchableWithoutFeedback
