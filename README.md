@@ -70,6 +70,42 @@ Sinh viên đi học thường có thói quen chụp ảnh bài giảng trên b�
 
 ---
 
+## 🧪 Hướng dẫn kiểm thử
+
+Dự án này sử dụng **Jest** và **React Native Testing Library** để kiểm
+thử cả giao diện UI và logic của ứng dụng.
+
+### 1. Chạy tất cả các bài kiểm thử
+
+``` bash
+npm run test
+```
+
+Lệnh này sẽ:
+
+-   Chạy tất cả các file test trong thư mục `__tests__/`
+-   Hiển thị kết quả pass/fail trên terminal
+-   Tự động theo dõi thay đổi file trong chế độ development
+
+### 2. Chạy kiểm thử kèm báo cáo coverage
+
+``` bash
+npm run test:coverage
+```
+
+Lệnh này sẽ:
+
+-   Tạo **báo cáo coverage**
+-   Xuất kết quả vào:
+
+```
+    coverage/
+    └── index.html
+```
+Bạn có thể mở `coverage/index.html` trong trình duyệt để xem bảng báo
+cáo coverage chi tiết (statements, branches, functions, lines).
+
+
 
 
 [![React Native CI - Test, Report & SonarCloud](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml/badge.svg)](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml)
