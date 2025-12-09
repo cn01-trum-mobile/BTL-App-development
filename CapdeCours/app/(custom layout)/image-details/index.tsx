@@ -1,231 +1,230 @@
-import React, { useRef, useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ImageSourcePropType } from 'react-native';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { useNavigation } from '@react-navigation/native';
-import { Trash2, Edit } from 'lucide-react-native'; 
-import BottomNav from '@/components/BottomNav'; 
-import { useLocalSearchParams } from 'expo-router';
+import React, { useRef, useMemo, useState, useCallback } from 'react';
+import { View, Text, Image, TouchableOpacity, TextInput, Keyboard } from 'react-native';
+import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gorhom/bottom-sheet';
+import { Trash2, Edit, Check } from 'lucide-react-native';
+import BottomNav from '@/components/BottomNav';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-// 1. ĐỊNH NGHĨA INTERFACE CHO PROPS
-interface RowProps {
-    label: string;
-    value: string;
-    field: string;
-    onEdit: (field: string) => void;
+// --- INTERFACES ---
+interface StaticRowProps {
+  label: string;
+  value: string;
 }
-// NoteRow không cần 'field' vì nó luôn là 'note', nhưng chúng ta vẫn có thể dùng interface này hoặc tạo một cái mới.
 
-// --- Component cho mỗi dòng chi tiết (Name, Folder, Time) ---
-// 2. GÁN KIỂU RowProps CHO PROPS CỦA DetailRow
-const DetailRow: React.FC<RowProps> = ({ label, value, field, onEdit }) => (
-  <View style={detailsStyles.fieldContainer}>
-    <Text style={detailsStyles.fieldLabel}>{label}</Text>
-    <View style={detailsStyles.fieldRow}>
-      <Text style={detailsStyles.fieldValue}>{value}</Text>
-      <TouchableOpacity onPress={() => onEdit(field)}>
-        <Edit size={16} color="#888" />
-      </TouchableOpacity>
+interface EditableFieldProps {
+  label: string;
+  initialValue: string;
+  field: 'name' | 'note' | 'folder' | 'time';
+  bottomSheetRef: React.RefObject<BottomSheet | null>;
+  onEditTrigger: (field: 'name' | 'note' | 'folder') => void;
+  onSave: (field: 'name' | 'note' | 'folder', newValue: string) => void;
+}
+
+// --- Component Handle tùy chỉnh ---
+const CustomHandle: React.FC<BottomSheetHandleProps> = () => (
+  <View className="items-center -mt-4">
+    <View className="w-20 h-8 bg-[#714A36] rounded-md justify-center items-center">
+      <Text className="text-white font-semibold">Detail</Text>
     </View>
   </View>
 );
 
-// --- Component cho phần Note/Description đặc biệt ---
-// 3. GÁN KIỂU CHO PROPS CỦA NoteRow
-// (Chỉ cần label, value và onEdit. Có thể bỏ qua field nếu onEdit luôn gọi 'note')
-interface NoteRowProps {
-    label: string;
-    value: string;
-    onEdit: (field: string) => void;
-}
-const NoteRow: React.FC<NoteRowProps> = ({ label, value, onEdit }) => (
-  <View style={detailsStyles.fieldContainer}>
-    <Text style={detailsStyles.fieldLabel}>{label}</Text>
-    <View style={detailsStyles.fieldRow}>
-      <Text style={detailsStyles.description}>
-        {value}
-      </Text>
-      <TouchableOpacity style={detailsStyles.editNoteButton} onPress={() => onEdit("note")}>
-        <Edit size={16} color="#888" />
-      </TouchableOpacity>
-    </View>
+// --- Component cho các dòng chi tiết KHÔNG chỉnh sửa trực tiếp (Time) ---
+const StaticRow: React.FC<StaticRowProps> = ({ label, value }) => (
+  <View className="mb-6">
+    <Text className="text-xs text-gray-500 mb-1">{label}</Text>
+    <Text className="text-base font-bold text-neutral-800 pt-1">{value}</Text>
   </View>
 );
 
+// --- Component cho các dòng chi tiết CÓ thể chỉnh sửa (Name, Note, Folder) ---
+const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, field,bottomSheetRef, onEditTrigger, onSave }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentValue, setCurrentValue] = useState(initialValue);
 
-// PHẦN CÒN LẠI CỦA DETAILVIEW (Sử dụng code của bạn, chỉ thêm lại các imports đã bị thiếu)
+  const handleToggleEdit = () => {
 
-export default function DetailView() {
-  const { uri, name } = useLocalSearchParams<{ uri?: string; name?: string }>();
-  const navigation = useNavigation();
-  const bottomSheetRef = useRef<BottomSheet>(null); // Giữ lại <BottomSheet> nếu bạn đang dùng TSX
+    if (!isEditing) {
+    bottomSheetRef.current?.snapToIndex(4);
+  }
+    if (field === 'folder') {
+      onEditTrigger('folder');
+      return;
+    }
 
-  // 3 trạng thái: chỉ hiện tên, nửa màn hình, full
-  const snapPoints = useMemo(() => ['18%', '25%', '55%', '90%'], []);
+    if (isEditing) {
+      let valueToSave = currentValue.trim();
 
-  // Hàm xử lý khi nhấn chỉnh sửa
-  const handleEdit = (field: string) => { // Định nghĩa kiểu string cho field
-    console.log(`Editing ${field}...`);
-    // Thêm logic chuyển sang màn hình chỉnh sửa hoặc mở modal
+      if (field === 'name') {
+        // Loại bỏ extension nếu người dùng tự nhập (tránh .jpg.jpg)
+        valueToSave = valueToSave.replace(/\.(jpg|jpeg|png)$/i, '');
+
+        // Thêm extension tự động khi lưu Name
+        valueToSave += '.jpg';
+      }
+
+      onSave(field as 'name' | 'note' | 'folder', valueToSave);
+      Keyboard.dismiss();
+      setIsEditing(false);
+    } else {
+      setIsEditing(true);
+    }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Cover Image */}
-      <View style={styles.coverContainer}>
-        <Image
-          source={{
-            uri: uri||'https://api.builder.io/api/v1/image/assets/TEMP/1c0a75c64f0f74fa6bd461db0c9830f7fc8248db?width=750',
-          }}
-          style={styles.coverImage}
-        />
+  const isNote = field === 'note';
 
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          {/* Thay thế Text bằng Icon Back Arrow nếu bạn có */}
-          <Text style={{ color: 'white', fontSize: 20 }}>←</Text> 
-        </TouchableOpacity>
+  // Trường Time
+  if (field === 'time') {
+    return <StaticRow label={label} value={initialValue} />;
+  }
 
-        <TouchableOpacity style={styles.deleteButton}>
-          <Trash2 size={22} color="white" />
-        </TouchableOpacity>
+  // Trường Folder
+  if (field === 'folder') {
+    return (
+      <View className="mb-6">
+        <Text className="text-xs text-gray-500 mb-1">{label}</Text>
+        <View className="flex-row justify-between items-center py-1">
+          <Text className="text-base font-bold text-neutral-800 flex-1 mr-2">{currentValue}</Text>
+          <TouchableOpacity onPress={handleToggleEdit}>
+            <Edit size={16} color="#888" />
+          </TouchableOpacity>
+        </View>
       </View>
+    );
+  }
 
-      {/* Bottom Sheet */}
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={0} // mở ở trạng thái đầu (25%)
-        snapPoints={snapPoints}
-        backgroundStyle={detailsStyles.bottomSheetBackground} 
-        handleIndicatorStyle={detailsStyles.bottomSheetHandleIndicator}
-      >
-        <BottomSheetScrollView contentContainerStyle={detailsStyles.contentContainer}>
-          {/* Nội dung đã được chỉnh sửa để giống Detail 2 */}
-          
-          {/* Name/Title Field */}
-          <DetailRow
-            label="Name"
-            value={name || "ComputerNetwork-Session1..."}
-            field="name"
-            onEdit={handleEdit}
+  // Trường Name/Note
+  return (
+    <View className="mb-6">
+      <Text className="text-xs text-gray-500 mb-1">{label}</Text>
+      <View className="flex-row justify-between items-center py-1">
+        {isEditing ? (
+          <TextInput
+            className={`
+                            text-neutral-800 border-b border-gray-300 flex-1 mr-2 px-0
+                            ${isNote ? 'text-sm min-h-[100px] text-left' : 'font-bold text-base'}
+                        `}
+            value={currentValue}
+            onChangeText={setCurrentValue}
+            autoFocus={true}
+            multiline={isNote}
+            style={{
+              textAlignVertical: isNote ? 'top' : 'center',
+              maxHeight: 120,
+              overflow: 'scroll',
+            }}
+            onBlur={() => {
+              if (isEditing) handleToggleEdit();
+            }}
           />
-
-          {/* Folder Field */}
-          <DetailRow
-            label="Folder"
-            value="ComputerScience/Session1"
-            field="folder"
-            onEdit={handleEdit}
-          />
-
-          {/* Time Field */}
-          <DetailRow
-            label="Time"
-            value="7:00AM Mon, Jan 1st 2025"
-            field="time"
-            onEdit={handleEdit}
-          />
-
-          {/* Note Field (Description) */}
-          <NoteRow
-            label="Note"
-            value="Melbourne based Illustrator & Designer Ken Taylor works primarily within the music industry and is predominantly well known for his striking rock posters. Ken started in Perth Western Australia doing posters and album artwork for local bands."
-            onEdit={handleEdit}
-          />
-          
-        </BottomSheetScrollView>
-      </BottomSheet>
-      
-      {/* BottomNav được đặt bên ngoài BottomSheet để luôn hiển thị */}
-      <View style={styles.fixedBottomNav}>
-        <BottomNav />
+        ) : (
+          <Text className={`text-base text-neutral-800 ${isNote ? 'text-sm leading-5 flex-1 mr-2' : 'font-bold flex-1 mr-2'}`}>
+            {/* Hiển thị tên file kèm .jpg khi không chỉnh sửa */}
+            {field === 'name' ? `${currentValue}.jpg` : currentValue}
+          </Text>
+        )}
+        <TouchableOpacity onPress={handleToggleEdit} className={isNote ? 'self-start' : ''}>
+          {isEditing ? <Check size={18} color="#4CAF50" /> : <Edit size={16} color="#888" />}
+        </TouchableOpacity>
       </View>
     </View>
   );
+};
+
+// --- DETAILVIEW CHÍNH ---
+export default function DetailView() {
+  const { uri, name } = useLocalSearchParams<{ uri?: string; name?: string }>();
+  const router = useRouter();
+  const bottomSheetRef = useRef<BottomSheet>(null);
+
+  // Sử dụng regex với $ để chỉ loại bỏ extension ở cuối chuỗi
+  const initialName = (name || 'ComputerNetwork-Session1.jpg').replace(/\.(jpg|jpeg|png)$/i, '');
+
+  const [data, setData] = useState({
+    name: initialName, // Name: "ComputerNetwork-Session1" (Không có extension)
+    folder: 'ComputerScience/Session1',
+    time: '7:00AM Mon, Jan 1st 2025',
+    note: 'Melbourne based Illustrator & Designer Ken Taylor works primarily within the music industry and is predominantly well known for his striking rock posters. Ken started in Perth Western Australia doing posters and album artwork for local bands. This note is very long, stretching down to show how the keyboard dismissal works when scrolling down the bottom sheet. We need enough text to overflow the initial sheet height.',
+    imageUri: uri || 'https://api.builder.io/api/v1/image/assets/TEMP/1c0a75c64f0f74fa6bd461db0c9830f7fc8248db?width=750',
+  });
+
+  const snapPoints = useMemo(() => ['11%', '20%', '55%', '95%'], []);
+
+  const handleEditTrigger = (field: 'name' | 'note' | 'folder') => {
+    // Logic chuyển trang cho Folder
+  };
+
+  const handleSave = (field: 'name' | 'note' | 'folder', newValue: string) => {
+    console.log(`Saving ${field}: ${newValue}`);
+
+    if (field === 'name') {
+      // Loại bỏ extension để lưu tên gốc vào state
+      const nameWithoutExtension = newValue.replace(/\.(jpg|jpeg|png)$/i, '');
+      setData((prev) => ({ ...prev, [field]: nameWithoutExtension }));
+    } else {
+      setData((prev) => ({ ...prev, [field]: newValue }));
+    }
+  };
+
+  const handleScrollBeginDrag = useCallback(() => {
+    Keyboard.dismiss();
+  }, []);
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View className="flex-1 bg-gray-100">
+        {/* Cover Image */}
+        <View className="h-full relative">
+          <Image source={{ uri: data.imageUri }} className="w-full h-full" resizeMode="cover" />
+
+          <TouchableOpacity onPress={() => router.back()} className="absolute top-10 left-4 p-2">
+            <Text className="text-white text-xl">←</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity className="absolute top-10 right-4 p-2">
+            <Trash2 size={22} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Bottom Sheet */}
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={1}
+          snapPoints={snapPoints}
+          containerStyle={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}
+          backgroundStyle={{ backgroundColor: '#FFFBEE', borderRadius: 20 }}
+          // Sử dụng component handle tùy chỉnh
+          handleComponent={CustomHandle}
+          // Ẩn indicator mặc định
+          handleIndicatorStyle={{ opacity: 0 }}
+          // Khắc phục lỗi bàn phím
+          keyboardBehavior="interactive"
+        >
+          <BottomSheetScrollView
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: 100 }}
+            // Ẩn bàn phím khi kéo sheet
+            onScrollBeginDrag={handleScrollBeginDrag}
+          >
+            {/* Name Field */}
+            <EditableField label="Name" initialValue={data.name} field="name" bottomSheetRef={bottomSheetRef} onEditTrigger={handleEditTrigger} onSave={handleSave} />
+
+            {/* Folder Field */}
+            <EditableField label="Folder" initialValue={data.folder} field="folder" bottomSheetRef={bottomSheetRef} onEditTrigger={handleEditTrigger} onSave={handleSave} />
+
+            {/* Time Field */}
+            <EditableField label="Time" initialValue={data.time} field="time" bottomSheetRef={bottomSheetRef} onEditTrigger={handleEditTrigger} onSave={handleSave} />
+
+            {/* Note Field */}
+            <EditableField label="Note" initialValue={data.note} field="note" bottomSheetRef={bottomSheetRef}  onEditTrigger={handleEditTrigger} onSave={handleSave} />
+          </BottomSheetScrollView>
+        </BottomSheet>
+
+        {/* BottomNav */}
+        <View className="absolute bottom-0 left-0 right-0 h-[70px]">
+          <BottomNav />
+        </View>
+      </View>
+    </GestureHandlerRootView>
+  );
 }
-
-
-// --- STYLES CHUNG ---
-const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F1F4F9' 
-  },
-  coverContainer: { 
-    height: '100%', 
-    position: 'relative' 
-  },
-  coverImage: { 
-    width: '100%', 
-    height: '100%', 
-    resizeMode: 'cover' 
-  },
-  backButton: { 
-    position: 'absolute', 
-    top: 40, 
-    left: 16,
-    padding: 8
-  },
-  deleteButton: { 
-    position: 'absolute', 
-    top: 40, 
-    right: 16,
-    padding: 8
-  },
-  fixedBottomNav: {
-    position: 'absolute', 
-    bottom: 0, 
-    left: 0, 
-    right: 0,
-    height: 70 
-  }
-});
-
-// --- STYLES DÀNH CHO BOTTOM SHEET ---
-const detailsStyles = StyleSheet.create({
-  bottomSheetBackground: {
-    backgroundColor: '#FFFEF8', 
-    borderRadius: 20, 
-  },
-  bottomSheetHandleIndicator: {
-    backgroundColor: '#ccc', 
-    width: 40,
-    marginTop: 8,
-  },
-  
-  contentContainer: {
-    paddingHorizontal: 24, 
-    paddingTop: 8, 
-    paddingBottom: 100, 
-  },
-
-  fieldContainer: {
-    marginBottom: 24, 
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    color: '#888',
-    marginBottom: 4,
-  },
-  fieldValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1, 
-    marginRight: 10,
-  },
-  description: {
-    fontSize: 13,
-    color: '#555',
-    lineHeight: 20,
-    flex: 1,
-    marginRight: 10,
-  },
-  editNoteButton: {
-    alignSelf: 'flex-start', 
-  },
-});
