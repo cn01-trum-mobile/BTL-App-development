@@ -16,7 +16,7 @@ export default function Home() {
   ];
 
   return (
-    <ScrollView className="flex-1 px-5 pt-12">
+    <ScrollView className="flex-1 px-5">
       {/* Welcome + Calendar */}
       <View className="mb-6">
         <View className="flex-row items-center justify-between mb-4">

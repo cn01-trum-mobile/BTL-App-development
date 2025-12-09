@@ -13,6 +13,7 @@ export default function ImagePreviewScreen() {
   const [message, setMessage] = useState<string>('');
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState('');
+  const sideWay = ['1', '3', '2', '4'];
 
   // const scale = useSharedValue(1);
   // const focalX = useSharedValue(0);
@@ -69,7 +70,12 @@ export default function ImagePreviewScreen() {
         sourceFile.copy(destFile);
       }
       // Alert
-      setAction({ icon: <Check size={24} color={'white'} strokeWidth={2} />, onPress: () => {} });
+      setAction({
+        icon: <Check size={24} color={'white'} strokeWidth={2} />,
+        onPress: () => {
+          router.replace('/camera');
+        },
+      });
       setVisible(true);
       setMessage(`Stored at folder\n"${destFile.uri}"`);
     } catch (error) {
@@ -95,7 +101,7 @@ export default function ImagePreviewScreen() {
             <X size={24} strokeWidth={3} color={'#714A36'} />
           </TouchableOpacity>
           {/* Image */}
-          {rotation === '1' || rotation === '3' ? (
+          {sideWay.includes(rotation) ? (
             <Image resizeMode="center" source={{ uri }} className="flex-1 rounded-xl overflow-hidden" />
           ) : (
             <Image source={{ uri }} className="flex-1 rounded-xl overflow-hidden" />

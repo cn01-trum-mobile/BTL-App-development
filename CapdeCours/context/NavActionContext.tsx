@@ -9,7 +9,9 @@ type ActionType = {
 
 type BottomActionContextType = {
   action: ActionType;
+  disabled: boolean;
   setAction: React.Dispatch<React.SetStateAction<ActionType>>;
+  setDisabled: React.Dispatch<React.SetStateAction<boolean>>;
   resetAction: () => void;
 };
 
@@ -20,6 +22,7 @@ export const BottomActionProvider = ({ children }: { children: ReactNode }) => {
     icon: <ScanLine size={24} color="rgba(66,22,13,0.75)" strokeWidth={2} />,
     onPress: () => router.replace('/camera'),
   });
+  const [disabled, setDisabled] = useState(false);
 
   const resetAction = () => {
     setAction({
@@ -28,7 +31,7 @@ export const BottomActionProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  return <BottomActionContext.Provider value={{ action, setAction, resetAction }}>{children}</BottomActionContext.Provider>;
+  return <BottomActionContext.Provider value={{ action, disabled, setAction, setDisabled, resetAction }}>{children}</BottomActionContext.Provider>;
 };
 
 export const useBottomAction = (): BottomActionContextType => {

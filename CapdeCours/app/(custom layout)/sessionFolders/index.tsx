@@ -81,7 +81,7 @@ export default function SessionFolderScreen() {
                 </TouchableOpacity>
 
                 {isExpanded && (
-                  <View className="flex-row flex-wrap gap-3 mt-4 mb-6">
+                  <View className="flex-row flex-wrap mt-4 mb-6">
                     {photos.map((photo, index) => (
                       <TouchableOpacity
                         key={index}

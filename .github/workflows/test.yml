@@ -1,0 +1,65 @@
+name: React Native CI - Test, Report & SonarCloud
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-and-analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: CapdeCours/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: CapdeCours
+
+      - name: Run Jest Coverage Tests
+        run: npm run test:coverage
+        working-directory: CapdeCours
+
+      # --- SỬA CÁC ĐƯỜNG DẪN DƯỚI ĐÂY ---
+
+      - name: Check coverage files
+        # Sửa đường dẫn để trỏ vào trong CapdeCours
+        run: |
+          ls -la CapdeCours/coverage/
+          cat CapdeCours/coverage/lcov.info | head -20
+
+      - name: Upload HTML Test Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          # Sửa path: coverage nằm trong CapdeCours
+          path: CapdeCours/coverage/lcov-report/
+          retention-days: 7
+
+      - name: Upload Coverage to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          # Sửa path: coverage nằm trong CapdeCours
+          path: CapdeCours/coverage/lcov.info
+          retention-days: 7
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        with:
+          projectBaseDir: CapdeCours
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
