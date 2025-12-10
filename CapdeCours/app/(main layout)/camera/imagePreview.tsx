@@ -33,7 +33,7 @@ export default function ImagePreviewScreen() {
   const [isLoading, setIsLoading] = useState(true);
 
   const sanitizeFolderName = useCallback((name: string) => {
-    return name.replace(/[^a-z0-9]/gi, '_').trim();
+    return name.trim();
   }, []);
 
   const savePhoto = useCallback(() => {
