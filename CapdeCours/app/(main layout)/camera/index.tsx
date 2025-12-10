@@ -32,12 +32,11 @@ export default function CameraScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const swipeGesture = Gesture.Pan().onEnd((event) => {
-    const { translationX } = event;
-    if (translationX < -100 || translationX > 100) {
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
       scheduleOnRN(setType, type === 'front' ? 'back' : 'front');
-    }
-  });
+    });
   const pinchGesture = Gesture.Pinch()
     .onStart(() => scheduleOnRN(setShowZoom, true))
     .onUpdate((event) => {
@@ -67,7 +66,7 @@ export default function CameraScreen() {
   }
 
   return (
-    <GestureDetector gesture={Gesture.Simultaneous(swipeGesture, pinchGesture)}>
+    <GestureDetector gesture={Gesture.Simultaneous(doubleTapGesture, pinchGesture)}>
       <View className="flex-1">
         <TouchableOpacity
           activeOpacity={0.8}
