@@ -1,129 +1,187 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, waitFor, fireEvent } from '@testing-library/react-native';
 import Home from '../app/(main layout)/home/index';
+import { getData } from '@/utils/asyncStorage';
+import * as Calendar from 'expo-calendar';
 
-jest.mock('lucide-react-native', () => ({
-    CalendarPlus: 'CalendarPlus',
-}));
+// --- SETUP & MOCKS ---
+const MOCK_DATE = new Date('2024-01-01T09:00:00.000Z');
+jest.useFakeTimers();
+jest.setSystemTime(MOCK_DATE);
 
+// 1. Mock Utils
+jest.mock('@/utils/asyncStorage', () => ({ getData: jest.fn() }));
+
+// 2. Mock Calendar
+jest.mock('expo-calendar', () => ({ getEventsAsync: jest.fn() }));
+
+// 3. Mock Navigation (LINT FIX: Use jest.requireActual + Inline arrow function)
+jest.mock('@react-navigation/native', () => {
+  const actualReact = jest.requireActual('react');
+  return {
+    useFocusEffect: (callback: () => void) => {
+      actualReact.useEffect(() => {
+        callback();
+      }, []);
+    },
+  };
+});
+
+// 4. Mock Icons (Use real Text for interaction)
+jest.mock('lucide-react-native', () => {
+  const { Text } = jest.requireActual('react-native');
+  return {
+    CalendarPlus: (props: any) => <Text {...props}>CalendarPlusIcon</Text>,
+  };
+});
+
+// 5. Mock Date-Fns
 jest.mock('date-fns', () => {
-    const actualDateFns = jest.requireActual('date-fns');
-    return {
-        ...actualDateFns,
-        startOfWeek: jest.fn(() => new Date(2024, 0, 1)),
-        addDays: jest.fn((date, days) => {
-            const result = new Date(date);
-            result.setDate(result.getDate() + days);
-            return result;
-        }),
-        format: jest.fn((date, formatStr) => {
-            if (formatStr === 'EEEEEE') {
-                const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-                return days[date.getDay()];
-            }
-            if (formatStr === 'd') {
-                return date.getDate().toString();
-            }
-            return date.toString();
-        }),
-        isToday: jest.fn(() => false),
-    };
+  const actual = jest.requireActual('date-fns');
+  return {
+    ...actual,
+    format: (date: Date, fmt: string) => {
+      if (fmt === 'HH:mm') {
+        const d = new Date(date);
+        const hours = d.getUTCHours().toString().padStart(2, '0');
+        const mins = d.getUTCMinutes().toString().padStart(2, '0');
+        return `${hours}.${mins}`;
+      }
+      return actual.format(date, fmt);
+    },
+  };
 });
 
 describe('Home Screen', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getData as jest.Mock).mockResolvedValue(JSON.stringify(['cal-1']));
+
+    // Default: 2 events (Crucial for 100% Function Coverage on .sort())
+    (Calendar.getEventsAsync as jest.Mock).mockResolvedValue([
+      {
+        id: '1',
+        title: 'Morning Class',
+        startDate: '2024-01-01T08:00:00.000Z',
+        endDate: '2024-01-01T10:00:00.000Z',
+        location: 'Room 101',
+      },
+      {
+        id: '2',
+        title: 'Afternoon Class',
+        startDate: '2024-01-01T13:00:00.000Z',
+        endDate: '2024-01-01T15:00:00.000Z',
+        location: 'Lab A',
+      },
+    ]);
+  });
+
+  // --- TESTS ---
+
+  it('renders correctly with events sorted', async () => {
+    const { getByText } = render(<Home />);
+    await waitFor(() => {
+      expect(getByText('Morning Class')).toBeTruthy();
+      expect(getByText('Afternoon Class')).toBeTruthy();
     });
+  });
 
-    it('renders correctly with welcome message', () => {
-        const { getByText } = render(<Home />);
-
-        expect(getByText('Welcome back!')).toBeTruthy();
+  it('renders images in bottom section', async () => {
+    const { UNSAFE_root } = render(<Home />);
+    await waitFor(() => {
+      expect(UNSAFE_root.findAllByType('Image').length).toBeGreaterThanOrEqual(2);
     });
+  });
 
-    it('displays today schedule section', () => {
-        const { getByText } = render(<Home />);
+  it('handles case where no calendar IDs are stored', async () => {
+    (getData as jest.Mock).mockResolvedValueOnce(null);
+    const { queryByText } = render(<Home />);
+    await waitFor(() => expect(queryByText('Morning Class')).toBeNull());
+  });
 
-        expect(getByText('Today schedule')).toBeTruthy();
+  it('handles API errors gracefully', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    (Calendar.getEventsAsync as jest.Mock).mockRejectedValueOnce(new Error('Fail'));
+    render(<Home />);
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    spy.mockRestore();
+  });
+
+  it('handles button press', async () => {
+    const { getByText } = render(<Home />);
+    await waitFor(() => getByText('Welcome back!'));
+
+    const btn = getByText('CalendarPlusIcon');
+    fireEvent.press(btn);
+    expect(btn).toBeTruthy();
+  });
+
+  it('handles weekday selection', async () => {
+    const { getByText } = render(<Home />);
+    await waitFor(() => getByText('Welcome back!'));
+    fireEvent.press(getByText('Tue'));
+    await waitFor(() => expect(getByText('Tue')).toBeTruthy());
+  });
+
+  // --- BRANCH LOGIC TESTS ---
+
+  it('displays empty state when no events exist', async () => {
+    (Calendar.getEventsAsync as jest.Mock).mockResolvedValueOnce([]);
+    const { getByText } = render(<Home />);
+    await waitFor(() => {
+      expect(getByText('No classes scheduled for today.')).toBeTruthy();
     });
+  });
 
-    it('renders schedule items with correct times', () => {
-        const { getByText } = render(<Home />);
+  it('handles events without location', async () => {
+    (Calendar.getEventsAsync as jest.Mock).mockResolvedValueOnce([
+      {
+        id: '99',
+        title: 'Mystery',
+        startDate: '2024-01-01T10:00:00.000Z',
+        endDate: '2024-01-01T11:00:00.000Z',
+        location: null,
+      },
+    ]);
 
-        expect(getByText('08.00')).toBeTruthy();
-        expect(getByText('10.00')).toBeTruthy();
-        expect(getByText('12.00')).toBeTruthy();
-        expect(getByText('14.00')).toBeTruthy();
-        expect(getByText('16.00')).toBeTruthy();
+    const { getByText, queryByText } = render(<Home />);
+    await waitFor(() => {
+      expect(getByText('Mystery')).toBeTruthy();
+      expect(queryByText(/📍/)).toBeNull();
     });
+  });
 
-    it('displays Machine learning class at 08.00', () => {
-        const { getByText } = render(<Home />);
+  it('formats short durations (< 1h) correctly', async () => {
+    (Calendar.getEventsAsync as jest.Mock).mockResolvedValueOnce([
+      {
+        id: 'short',
+        title: 'Shorty',
+        startDate: '2024-01-01T10:00:00.000Z',
+        endDate: '2024-01-01T10:45:00.000Z',
+        location: 'A',
+      },
+    ]);
 
-        expect(getByText('Machine learning')).toBeTruthy();
+    const { getByText } = render(<Home />);
+    await waitFor(() => {
+      expect(getByText(/45m/)).toBeTruthy();
     });
+  });
 
-    it('displays Deep learning class at 12.00', () => {
-        const { getByText } = render(<Home />);
+  it('formats complex durations (> 1h with mins) correctly', async () => {
+    (Calendar.getEventsAsync as jest.Mock).mockResolvedValueOnce([
+      {
+        id: 'complex',
+        title: 'Long',
+        startDate: '2024-01-01T10:00:00.000Z',
+        endDate: '2024-01-01T11:30:00.000Z',
+        location: 'B',
+      },
+    ]);
 
-        expect(getByText('Deep learning')).toBeTruthy();
+    const { getByText } = render(<Home />);
+    await waitFor(() => {
+      expect(getByText(/1h30/)).toBeTruthy();
     });
-
-    it('renders bottom section with call-to-action text', () => {
-        const { getByText } = render(<Home />);
-
-        expect(getByText('Classify unorganized images now!')).toBeTruthy();
-    });
-
-    it('displays schedule with proper structure', () => {
-        const { getByText } = render(<Home />);
-
-        expect(getByText('08.00')).toBeTruthy();
-        expect(getByText('10.00')).toBeTruthy();
-        expect(getByText('12.00')).toBeTruthy();
-
-        expect(getByText('Machine learning')).toBeTruthy();
-        expect(getByText('Deep learning')).toBeTruthy();
-    });
-
-    it('renders images in bottom section', () => {
-        const { UNSAFE_root } = render(<Home />);
-
-        const images = UNSAFE_root.findAllByType('Image');
-
-        expect(images.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('has correct styling classes for main sections', () => {
-        const { getByText } = render(<Home />);
-
-        const welcomeText = getByText('Welcome back!');
-        expect(welcomeText.props.className).toContain('text-xl');
-        expect(welcomeText.props.className).toContain('font-bold');
-
-        const scheduleTitle = getByText('Today schedule');
-        expect(scheduleTitle.props.className).toContain('text-xl');
-        expect(scheduleTitle.props.className).toContain('font-bold');
-    });
-
-    it('renders schedule items in correct order', () => {
-        const { getByText } = render(<Home />);
-
-        const times = ['08.00', '10.00', '12.00', '14.00', '16.00'];
-        times.forEach(time => {
-            expect(getByText(time)).toBeTruthy();
-        });
-    });
-
-    it('displays class blocks with correct content', () => {
-        const { getByText } = render(<Home />);
-
-        const mlClass = getByText('Machine learning');
-        const dlClass = getByText('Deep learning');
-
-        expect(mlClass).toBeTruthy();
-        expect(dlClass).toBeTruthy();
-        expect(mlClass.props.className).toContain('text-white');
-        expect(dlClass.props.className).toContain('text-white');
-    });
+  });
 });

@@ -1,10 +1,25 @@
 import { useBottomAction } from '@/context/NavActionContext';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { View, Image, TouchableOpacity, Text, TextInput, ScrollView, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Image,
+  TouchableOpacity,
+  Text,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+  ActivityIndicator,
+} from 'react-native';
 import { File, Paths, Directory } from 'expo-file-system';
 import { BookOpen, BookText, Check, Download, X } from 'lucide-react-native';
 import { Alert } from '@/components/Alert';
+import * as Calendar from 'expo-calendar';
+import { endOfDay, isWithinInterval, startOfDay } from 'date-fns';
+import { getData } from '@/utils/asyncStorage';
 
 export default function ImagePreviewScreen() {
   const { uri, rotation } = useLocalSearchParams<{ uri: string; rotation: string }>();
@@ -14,7 +29,120 @@ export default function ImagePreviewScreen() {
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState('');
   const sideWay = ['1', '3', '2', '4'];
+  const [events, setEvents] = useState<Calendar.Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const sanitizeFolderName = useCallback((name: string) => {
+    return name.trim();
+  }, []);
+
+  const savePhoto = useCallback(() => {
+    if (!uri) return;
+    const now = new Date();
+    // Check if "now" is inside any of the event time slots
+    const currentEvent = events.find((event) => {
+      const start = new Date(event.startDate);
+      const end = new Date(event.endDate);
+      return isWithinInterval(now, { start, end });
+    });
+
+    let subjectName = 'Unorganized'; // Default if no class is happening
+    let eventDetails = null;
+    if (currentEvent) {
+      subjectName = sanitizeFolderName(currentEvent.title);
+      eventDetails = {
+        id: currentEvent.id,
+        title: currentEvent.title,
+        calendarId: currentEvent.calendarId,
+        location: currentEvent.location,
+      };
+    }
+    try {
+      const photosDir = new Directory(Paths.document, 'photos');
+      const subjectDir = new Directory(photosDir, subjectName);
+      // Create folder if it doesn't exist
+      if (!photosDir.exists) {
+        photosDir.create();
+      }
+      // Create folder if it doesn't exist
+      if (!subjectDir.exists) {
+        subjectDir.create();
+      }
+
+      // Define Files (Image & Metadata)
+      const timestamp = now.getTime();
+      const fileName = `IMG_${timestamp}.jpg`;
+      const jsonName = `IMG_${timestamp}.json`;
+
+      const sourceFile = new File(uri); // The temp photo
+      const destFile = new File(subjectDir, fileName); // The permanent photo
+      const jsonFile = new File(subjectDir, jsonName); // The note/metadata
+
+      if (!destFile.exists) {
+        sourceFile.copy(destFile);
+      }
+      // Save the Metadata (Note)
+      const metadata = {
+        originalUri: uri,
+        createdAt: now.toISOString(),
+        note: note,
+        subject: subjectName,
+        event: eventDetails,
+      };
+
+      // Write the JSON content
+      jsonFile.write(JSON.stringify(metadata, null, 2));
+
+      // Alert
+      setAction({
+        icon: <Check size={24} color={'white'} strokeWidth={2} />,
+        onPress: () => {
+          router.replace('/camera');
+        },
+      });
+      setVisible(true);
+      setMessage(`Saved to \n"${subjectName}"`);
+    } catch (error) {
+      console.error('Error saving photo:', error);
+    }
+  }, [setAction, uri, events, note, sanitizeFolderName]);
+
+  // Fetch calendar
+  const fetchCalendar = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const storedIds = await getData('USER_CALENDAR_IDS');
+      if (!storedIds) {
+        return;
+      }
+      const calendarIds = JSON.parse(storedIds);
+      const date = new Date();
+      const startDate = startOfDay(date);
+      const endDate = endOfDay(date);
+      const fetchedEvents = await Calendar.getEventsAsync(calendarIds, startDate, endDate);
+      fetchedEvents.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      setEvents(fetchedEvents);
+    } catch (error) {
+      console.error('Lỗi lấy lịch:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) {
+      // Show Spinner
+      setAction({
+        icon: <ActivityIndicator size={'small'} color={'white'} className="p-0.5" />,
+        onPress: () => {},
+      });
+    } else {
+      setAction({
+        icon: <Download size={24} color={'white'} strokeWidth={2} />,
+        onPress: savePhoto,
+      });
+    }
+  }, [isLoading, savePhoto, setAction]);
   // const scale = useSharedValue(1);
   // const focalX = useSharedValue(0);
   // const focalY = useSharedValue(0);
@@ -44,44 +172,9 @@ export default function ImagePreviewScreen() {
   // }));
 
   useEffect(() => {
-    setAction({
-      icon: <Download size={24} color={'white'} strokeWidth={2} />,
-      onPress: savePhoto,
-    });
+    fetchCalendar();
     return resetAction;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uri]);
-
-  const savePhoto = () => {
-    if (!uri) return;
-    try {
-      const filename = uri.split('/').pop() ?? `photo_${Date.now()}.jpg`;
-      // Create File for source
-      const sourceFile = new File(uri);
-      // Destination directory
-      const destDir = new Directory(Paths.document, 'photos');
-      if (!destDir.exists) {
-        destDir.create({ intermediates: true });
-      }
-      // Destination file
-      const destFile = new File(destDir, filename);
-      // Copy source to destination
-      if (!destFile.exists) {
-        sourceFile.copy(destFile);
-      }
-      // Alert
-      setAction({
-        icon: <Check size={24} color={'white'} strokeWidth={2} />,
-        onPress: () => {
-          router.replace('/camera');
-        },
-      });
-      setVisible(true);
-      setMessage(`Stored at folder\n"${destFile.uri}"`);
-    } catch (error) {
-      console.error('Error saving photo:', error);
-    }
-  };
+  }, [fetchCalendar, resetAction]);
 
   return (
     <TouchableWithoutFeedback

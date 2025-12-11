@@ -1,10 +1,10 @@
-import { router } from 'expo-router';
+import { RelativePathString, router } from 'expo-router';
 import { Pencil } from 'lucide-react-native';
 import { View, Text, TouchableOpacity } from 'react-native';
 
 interface FolderCardProps {
   title: string;
-  link?: string;
+  link: RelativePathString;
 }
 
 function randomInRange(min: number, max: number) {
