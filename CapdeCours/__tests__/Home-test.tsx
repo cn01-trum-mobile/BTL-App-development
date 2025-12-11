@@ -6,6 +6,10 @@ jest.mock('@/utils/asyncStorage', () => ({
   getData: jest.fn(() => Promise.resolve(JSON.stringify(['calendar-1']))),
 }));
 
+jest.mock('@react-navigation/native', () => ({
+  useFocusEffect: (callback: () => void) => callback(),
+}));
+
 jest.mock('lucide-react-native', () => ({
   CalendarPlus: 'CalendarPlus',
 }));
