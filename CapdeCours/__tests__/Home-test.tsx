@@ -1,6 +1,5 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import { Text } from 'react-native';
 import Home from '../app/(main layout)/home/index';
 
 // --- Mock Navigation ---
@@ -25,16 +24,19 @@ jest.mock('expo-calendar', () => ({
   ),
 }));
 
-// --- Mock Icons (để test text được render) ---
-jest.mock('lucide-react-native', () => ({
-  CalendarPlus: () => <Text>CalendarPlus</Text>,
-}));
+// --- Mock Icons (bản sửa đúng cách) ---
+jest.mock('lucide-react-native', () => {
+  const { Text } = require('react-native');
+  return {
+    CalendarPlus: () => <Text>CalendarPlus</Text>,
+  };
+});
 
 // --- Mock date-fns ---
 jest.mock('date-fns', () => ({
   format: jest.fn(() => 'Jan 2024'),
   startOfWeek: jest.fn(() => new Date(2024, 0, 1)),
-  addDays: jest.fn((d, n) => new Date(2024, 0, 1 + n)),
+  addDays: jest.fn((_, n) => new Date(2024, 0, 1 + n)),
   isSameDay: jest.fn(() => false),
 }));
 
@@ -44,7 +46,7 @@ describe('Home Screen (Static UI)', () => {
     expect(getByText('Welcome back!')).toBeTruthy();
   });
 
-  it('renders month-year text somewhere', () => {
+  it('renders month-year text at least once', () => {
     const { getAllByText } = render(<Home />);
     expect(getAllByText('Jan 2024').length).toBeGreaterThan(0);
   });
