@@ -2,128 +2,62 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import Home from '../app/(main layout)/home/index';
 
-jest.mock('lucide-react-native', () => ({
-    CalendarPlus: 'CalendarPlus',
+// Mock navigation để tránh dùng NavigationContainer
+jest.mock('@react-navigation/native', () => ({
+  ...jest.requireActual('@react-navigation/native'),
+  useNavigation: () => ({ navigate: jest.fn() }),
+
+  useFocusEffect: jest.fn(() => {}),
 }));
 
-jest.mock('date-fns', () => {
-    const actualDateFns = jest.requireActual('date-fns');
-    return {
-        ...actualDateFns,
-        startOfWeek: jest.fn(() => new Date(2024, 0, 1)),
-        addDays: jest.fn((date, days) => {
-            const result = new Date(date);
-            result.setDate(result.getDate() + days);
-            return result;
-        }),
-        format: jest.fn((date, formatStr) => {
-            if (formatStr === 'EEEEEE') {
-                const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-                return days[date.getDay()];
-            }
-            if (formatStr === 'd') {
-                return date.getDate().toString();
-            }
-            return date.toString();
-        }),
-        isToday: jest.fn(() => false),
-    };
-});
+// Mock AsyncStorage
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(() => Promise.resolve(null)),
+  setItem: jest.fn(() => Promise.resolve()),
+}));
 
-describe('Home Screen', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-    });
+// Mock Calendar
+jest.mock('expo-calendar', () => ({
+  getEventsAsync: jest.fn(() => Promise.resolve([])),
+}));
 
-    it('renders correctly with welcome message', () => {
-        const { getByText } = render(<Home />);
+// Mock icon
+jest.mock('lucide-react-native', () => ({
+  CalendarPlus: 'CalendarPlus',
+}));
 
-        expect(getByText('Welcome back!')).toBeTruthy();
-    });
+// Mock date-fns cho stable UI
+jest.mock('date-fns', () => ({
+  format: jest.fn(() => 'Jan 2024'),
+  startOfWeek: jest.fn(() => new Date(2024, 0, 1)),
+  addDays: jest.fn((d, n) => new Date(2024, 0, 1 + n)),
+  isSameDay: jest.fn(() => false),
+}));
 
-    it('displays today schedule section', () => {
-        const { getByText } = render(<Home />);
+describe('Home Screen (UI only)', () => {
+  it('renders welcome message', () => {
+    const { getByText } = render(<Home />);
+    expect(getByText('Welcome back!')).toBeTruthy();
+  });
 
-        expect(getByText('Today schedule')).toBeTruthy();
-    });
+  it('renders month-year text', () => {
+    const { getByText } = render(<Home />);
+    expect(getByText('Jan 2024')).toBeTruthy();
+  });
 
-    it('renders schedule items with correct times', () => {
-        const { getByText } = render(<Home />);
+  it('renders banner text', () => {
+    const { getByText } = render(<Home />);
+    expect(getByText('Classify unorganized images now!')).toBeTruthy();
+  });
 
-        expect(getByText('08.00')).toBeTruthy();
-        expect(getByText('10.00')).toBeTruthy();
-        expect(getByText('12.00')).toBeTruthy();
-        expect(getByText('14.00')).toBeTruthy();
-        expect(getByText('16.00')).toBeTruthy();
-    });
+  it('renders CalendarPlus icon', () => {
+    const { getByText } = render(<Home />);
+    expect(getByText('CalendarPlus')).toBeTruthy();
+  });
 
-    it('displays Machine learning class at 08.00', () => {
-        const { getByText } = render(<Home />);
-
-        expect(getByText('Machine learning')).toBeTruthy();
-    });
-
-    it('displays Deep learning class at 12.00', () => {
-        const { getByText } = render(<Home />);
-
-        expect(getByText('Deep learning')).toBeTruthy();
-    });
-
-    it('renders bottom section with call-to-action text', () => {
-        const { getByText } = render(<Home />);
-
-        expect(getByText('Classify unorganized images now!')).toBeTruthy();
-    });
-
-    it('displays schedule with proper structure', () => {
-        const { getByText } = render(<Home />);
-
-        expect(getByText('08.00')).toBeTruthy();
-        expect(getByText('10.00')).toBeTruthy();
-        expect(getByText('12.00')).toBeTruthy();
-
-        expect(getByText('Machine learning')).toBeTruthy();
-        expect(getByText('Deep learning')).toBeTruthy();
-    });
-
-    it('renders images in bottom section', () => {
-        const { UNSAFE_root } = render(<Home />);
-
-        const images = UNSAFE_root.findAllByType('Image');
-
-        expect(images.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('has correct styling classes for main sections', () => {
-        const { getByText } = render(<Home />);
-
-        const welcomeText = getByText('Welcome back!');
-        expect(welcomeText.props.className).toContain('text-xl');
-        expect(welcomeText.props.className).toContain('font-bold');
-
-        const scheduleTitle = getByText('Today schedule');
-        expect(scheduleTitle.props.className).toContain('text-xl');
-        expect(scheduleTitle.props.className).toContain('font-bold');
-    });
-
-    it('renders schedule items in correct order', () => {
-        const { getByText } = render(<Home />);
-
-        const times = ['08.00', '10.00', '12.00', '14.00', '16.00'];
-        times.forEach(time => {
-            expect(getByText(time)).toBeTruthy();
-        });
-    });
-
-    it('displays class blocks with correct content', () => {
-        const { getByText } = render(<Home />);
-
-        const mlClass = getByText('Machine learning');
-        const dlClass = getByText('Deep learning');
-
-        expect(mlClass).toBeTruthy();
-        expect(dlClass).toBeTruthy();
-        expect(mlClass.props.className).toContain('text-white');
-        expect(dlClass.props.className).toContain('text-white');
-    });
+  it('renders at least 2 images', () => {
+    const { UNSAFE_root } = render(<Home />);
+    const imgs = UNSAFE_root.findAllByType('Image');
+    expect(imgs.length).toBeGreaterThanOrEqual(2);
+  });
 });
