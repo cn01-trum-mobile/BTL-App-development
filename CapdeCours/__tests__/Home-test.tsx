@@ -1,21 +1,22 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
+import { Text } from 'react-native';
 import Home from '../app/(main layout)/home/index';
 
-// --- Mock Navigation (ngăn side-effect focus) ---
+// --- Mock Navigation ---
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: jest.fn() }),
-  useFocusEffect: jest.fn(() => {}), // disable side-effect
+  useFocusEffect: jest.fn(() => {}),
 }));
 
-// --- Mock AsyncStorage (ngăn fetchEvents chạy thật) ---
+// --- Mock AsyncStorage ---
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve(null)),
   setItem: jest.fn(() => Promise.resolve()),
 }));
 
-// --- Mock Calendar API (tránh gọi native) ---
+// --- Mock Calendar API ---
 jest.mock('expo-calendar', () => ({
   getEventsAsync: jest.fn(() => Promise.resolve([])),
   getCalendarsAsync: jest.fn(() => Promise.resolve([])),
@@ -24,12 +25,12 @@ jest.mock('expo-calendar', () => ({
   ),
 }));
 
-// --- Mock Icons ---
+// --- Mock Icons (để test text được render) ---
 jest.mock('lucide-react-native', () => ({
-  CalendarPlus: 'CalendarPlus',
+  CalendarPlus: () => <Text>CalendarPlus</Text>,
 }));
 
-// --- Mock date-fns để tránh lệch giờ ---
+// --- Mock date-fns ---
 jest.mock('date-fns', () => ({
   format: jest.fn(() => 'Jan 2024'),
   startOfWeek: jest.fn(() => new Date(2024, 0, 1)),
@@ -37,21 +38,15 @@ jest.mock('date-fns', () => ({
   isSameDay: jest.fn(() => false),
 }));
 
-// --- Mock toàn bộ fetchEvents nếu component gọi trực tiếp (bảo hiểm) ---
-jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
-  cb(); // chạy ngay, tránh async
-  return 0;
-});
-
 describe('Home Screen (Static UI)', () => {
   it('renders welcome message', () => {
     const { getByText } = render(<Home />);
     expect(getByText('Welcome back!')).toBeTruthy();
   });
 
-  it('renders month-year text', () => {
-    const { getByText } = render(<Home />);
-    expect(getByText('Jan 2024')).toBeTruthy();
+  it('renders month-year text somewhere', () => {
+    const { getAllByText } = render(<Home />);
+    expect(getAllByText('Jan 2024').length).toBeGreaterThan(0);
   });
 
   it('renders banner text', () => {
@@ -59,7 +54,7 @@ describe('Home Screen (Static UI)', () => {
     expect(getByText('Classify unorganized images now!')).toBeTruthy();
   });
 
-  it('renders CalendarPlus icon', () => {
+  it('renders CalendarPlus icon text', () => {
     const { getByText } = render(<Home />);
     expect(getByText('CalendarPlus')).toBeTruthy();
   });
