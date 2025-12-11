@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import * as Calendar from 'expo-calendar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { getData, storeData } from '@/utils/asyncStorage';
 
 export default function CalendarSelectScreen({ navigation }: any) {
   // Set mặc định là rỗng
@@ -26,10 +26,7 @@ export default function CalendarSelectScreen({ navigation }: any) {
 
         // 2. Chạy song song 2 tác vụ: Lấy danh sách lịch THỰC TẾ & Lấy danh sách ĐÃ LƯU
         // Dùng Promise.all để tiết kiệm thời gian chờ
-        const [allCalendars, storedIdsJson] = await Promise.all([
-          Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT),
-          AsyncStorage.getItem('USER_CALENDAR_IDS'),
-        ]);
+        const [allCalendars, storedIdsJson] = await Promise.all([Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT), getData('USER_CALENDAR_IDS')]);
 
         console.log(JSON.stringify(allCalendars, null, 2));
 
@@ -92,7 +89,7 @@ export default function CalendarSelectScreen({ navigation }: any) {
     setIsSaving(true);
     try {
       const idsArray = Array.from(selectedIds);
-      await AsyncStorage.setItem('USER_CALENDAR_IDS', JSON.stringify(idsArray));
+      await storeData('USER_CALENDAR_IDS', JSON.stringify(idsArray));
       Alert.alert('Thành công', `Đã cập nhật ${idsArray.length} nguồn lịch.`);
       // navigation.navigate('Home'); // Ví dụ chuyển trang
       // eslint-disable-next-line @typescript-eslint/no-unused-vars

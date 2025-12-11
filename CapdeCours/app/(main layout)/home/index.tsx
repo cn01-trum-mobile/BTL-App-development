@@ -3,8 +3,8 @@ import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator } fr
 import { CalendarPlus } from 'lucide-react-native';
 import { addDays, format, isSameDay, startOfWeek, endOfDay, startOfDay, differenceInMinutes } from 'date-fns';
 import * as Calendar from 'expo-calendar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native'; // Hoặc 'expo-router' nếu bạn dùng expo-router
+import { getData } from '@/utils/asyncStorage';
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -20,7 +20,7 @@ export default function Home() {
     setLoading(true);
     try {
       // 1. Lấy danh sách lịch đã chọn từ bộ nhớ
-      const storedIds = await AsyncStorage.getItem('USER_CALENDAR_IDS');
+      const storedIds = await getData('USER_CALENDAR_IDS');
       if (!storedIds) {
         // Chưa chọn lịch -> Không làm gì hoặc báo user
         setLoading(false);

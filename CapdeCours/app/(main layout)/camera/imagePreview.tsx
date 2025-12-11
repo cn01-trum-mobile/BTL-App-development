@@ -18,8 +18,8 @@ import { File, Paths, Directory } from 'expo-file-system';
 import { BookOpen, BookText, Check, Download, X } from 'lucide-react-native';
 import { Alert } from '@/components/Alert';
 import * as Calendar from 'expo-calendar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { endOfDay, isWithinInterval, startOfDay } from 'date-fns';
+import { getData } from '@/utils/asyncStorage';
 
 export default function ImagePreviewScreen() {
   const { uri, rotation } = useLocalSearchParams<{ uri: string; rotation: string }>();
@@ -111,7 +111,7 @@ export default function ImagePreviewScreen() {
   const fetchCalendar = useCallback(async () => {
     setIsLoading(true);
     try {
-      const storedIds = await AsyncStorage.getItem('USER_CALENDAR_IDS');
+      const storedIds = await getData('USER_CALENDAR_IDS');
       if (!storedIds) {
         return;
       }
