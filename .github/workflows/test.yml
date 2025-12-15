@@ -42,7 +42,7 @@ jobs:
           cat CapdeCours/coverage/lcov.info | head -20
 
       - name: Upload HTML Test Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-report
           # Sửa path: coverage nằm trong CapdeCours
@@ -50,7 +50,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Coverage to Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-lcov
           # Sửa path: coverage nằm trong CapdeCours
