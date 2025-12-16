@@ -1,3 +1,45 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  /* Title-1: 24px Extra Bold */
+  .title-1 {
+    @apply text-[24px] font-extrabold font-poppins;
+  }
+
+  /* Title-2: 20px Bold */
+  .title-2 {
+    @apply text-[20px] font-bold font-poppins;
+  }
+
+  /* Title-3: 15px Bold */
+  .title-3 {
+    @apply text-[15px] font-bold font-poppins;
+  }
+
+  /* Sub-Title: 16px Regular, Leading 24px */
+  .sub-title {
+    @apply text-[16px] font-normal leading-[24px] font-poppins;
+  }
+
+  /* Gray Text: 16px Regular */
+  .gray-text {
+    @apply text-[16px] font-normal font-poppins;
+  }
+
+  /* Content-1: 14px Regular */
+  .content-1 {
+    @apply text-[14px] font-normal font-poppins;
+  }
+
+  /* Button-text: 14px Bold Uppercase */
+  .button-text {
+    @apply text-[14px] font-bold uppercase font-poppins;
+  }
+
+  /* Picture-name: 15px Bold */
+  .picture-name {
+    @apply text-[15px] font-bold font-poppins;
+  }
+}

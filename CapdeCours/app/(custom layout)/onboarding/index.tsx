@@ -17,22 +17,22 @@ interface OnboardingScreen {
 const screens: OnboardingScreen[] = [
   {
     title: 'In-App Camera',
-    description: "Use our dedicated camera. Photos are saved directly to our system, keeping them separate from your phone's personal photo gallery.",
+    description: 'Photos are saved directly to our system, keeping them separate from your personal photo gallery.',
     image: require('@/assets/images/onboard1.png'),
   },
   {
     title: 'Sync Timetable',
-    description: 'Connect with your Google Calendar. This allows the app to recognize the subject and automatically organize your photos.',
+    description: 'Connect with your calendar. This allows the app to recognize the subjects and automatically organize your photos.',
     image: require('@/assets/images/onboard2.png'),
   },
   {
     title: 'Automatic Sorting',
-    description: 'Thanks to your synced timetable, every photo is automatically tagged by Subject and Lecture. Just snap and forget about manual sorting!',
+    description: 'Every photo is automatically tagged by Subject and Lecture. Just snap and forget about manual sorting!',
     image: require('@/assets/images/onboard3.png'),
   },
   {
     title: 'Gallery & Search',
-    description: 'Access a dedicated library where everything is neatly sorted. Easily search and review material by subject, preparing you for any exam.',
+    description: 'Access a dedicated library where you can easily search and review material by subject to prepare for any exam.',
     image: require('@/assets/images/onboard4.png'),
   },
 ];
@@ -88,9 +88,9 @@ export default function Onboarding() {
       <View className="flex-1 flex-col items-center justify-center pt-2 px-5">
         {/* App Title */}
         <View className="w-full justify-center">
-          <Text className="font-sunshiney text-[24px] font-semibold text-[#32343E] opacity-80 text-center">CapdeCours</Text>
+          <Text className="font-sunshiney text-[24px] text-secondary-black text-center">CapdeCours</Text>
           <TouchableOpacity onPress={handleSkip} activeOpacity={0.8} className="absolute right-0">
-            <Text className="text-[16px] font-sen text-[#646982] text-center mt-1">Skip</Text>
+            <Text className="text-[#646982] sub-title text-center mt-1">Skip</Text>
           </TouchableOpacity>
         </View>
 
@@ -100,9 +100,9 @@ export default function Onboarding() {
             return (
               <View className="flex-1 items-center justify-center px-6" key={idx} style={{ width: screenWidth }}>
                 <Image source={val.image} resizeMode="contain" className="w-[316px] h-[316px]" />
-                <Text className="text-[24px] font-sen font-bold text-[#AC3C00] text-center mb-4">{val.title}</Text>
+                <Text className="title-1 text-primary-orange text-center mb-4">{val.title}</Text>
 
-                <Text className="text-[16px] font-sen text-[#646982] text-center leading-6 mb-12 px-1">{val.description}</Text>
+                <Text className="sub-title text-gray-button text-center mb-12 px-1">{val.description}</Text>
               </View>
             );
           })}
@@ -114,21 +114,29 @@ export default function Onboarding() {
           {currentScreen === 0 ? (
             <View className={'h-[45.5px] w-[73px] px-5 rounded-xl items-center justify-center mb-4 opacity-0'}></View>
           ) : (
-            <TouchableOpacity onPress={handlePrev} activeOpacity={0.9} className={'h-[45.5px] w-[73px] rounded-xl bg-primary items-center justify-center mb-4'}>
-              <Text className="text-white font-sen text-[14px] font-bold uppercase opacity-80">Prev</Text>
+            <TouchableOpacity
+              onPress={handlePrev}
+              activeOpacity={0.9}
+              className={'h-[45.5px] w-[73px] rounded-xl bg-gray-button items-center justify-center mb-4'}
+            >
+              <Text className="text-white button-text">Back</Text>
             </TouchableOpacity>
           )}
 
           {/* Dots */}
           <View className="flex-row justify-center gap-[11px] mb-4">
             {screens.map((_, index) => (
-              <View key={index} className={`w-[10px] h-[10px] rounded-full ${index === currentScreen ? 'bg-[#A44063]' : 'bg-[#4A4459]'}`} />
+              <View key={index} className={`w-[10px] h-[10px] rounded-full ${index === currentScreen ? 'bg-primary-pink' : 'bg-gray-button'}`} />
             ))}
           </View>
 
           {/* Buttons */}
-          <TouchableOpacity onPress={handleNext} activeOpacity={0.9} className="h-[45.5px] w-[73px] rounded-xl bg-primary items-center justify-center mb-4">
-            <Text className="text-white font-sen text-[14px] font-bold uppercase opacity-80">{currentScreen === screens.length - 1 ? 'Start' : 'Next'}</Text>
+          <TouchableOpacity
+            onPress={handleNext}
+            activeOpacity={0.9}
+            className="h-[45.5px] w-[73px] rounded-xl bg-primary-brown items-center justify-center mb-4"
+          >
+            <Text className="text-white button-text">{currentScreen === screens.length - 1 ? 'Start' : 'Next'}</Text>
           </TouchableOpacity>
         </View>
       </View>

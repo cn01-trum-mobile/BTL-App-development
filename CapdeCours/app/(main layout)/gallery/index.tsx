@@ -52,7 +52,7 @@ export default function GalleryScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Empty State */}
-          {folders.length === 0 && <Text className="text-center text-gray-400 mt-10 font-sen">No folders yet. Take a photo to start!</Text>}
+          {folders.length === 0 && <Text className="text-center text-gray-400 mt-10 font-poppins">No folders yet. Take a photo to start!</Text>}
 
           {/* Render List */}
           {folders.map((folder) => (

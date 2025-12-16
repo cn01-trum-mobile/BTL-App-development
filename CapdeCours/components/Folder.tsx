@@ -28,10 +28,10 @@ export default function FolderCard({ title, link }: FolderCardProps) {
       className="relative flex-row items-center gap-4 p-4 rounded-[22.5px] h-[65px] mb-4"
       style={{ backgroundColor: getWarmPastelColor() }}
     >
-      <View className="flex items-center justify-center w-[35px] h-[35px] rounded-[11.25px] bg-black/10">
-        <Pencil size={16} color={'#35383E'} />
+      <View className="flex items-center justify-center w-[35px] h-[35px] rounded-2xl bg-black/10">
+        <Pencil size={16} color={'white'} />
       </View>
-      <Text className="flex-1 text-[#35383E] font-sen font-bold text-sm uppercase">{title}</Text>
+      <Text className="flex-1 text-secondary-black button-text">{title}</Text>
     </TouchableOpacity>
   );
 }

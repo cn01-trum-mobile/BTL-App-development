@@ -19,14 +19,14 @@ const BottomActionContext = createContext<BottomActionContextType | undefined>(u
 
 export const BottomActionProvider = ({ children }: { children: ReactNode }) => {
   const [action, setAction] = useState<ActionType>({
-    icon: <ScanLine size={24} color="rgba(66,22,13,0.75)" strokeWidth={2} />,
+    icon: <ScanLine size={24} color="#6E4A3F" strokeWidth={2} />,
     onPress: () => router.replace('/camera'),
   });
   const [disabled, setDisabled] = useState(false);
 
   const resetAction = () => {
     setAction({
-      icon: <ScanLine size={24} color="rgba(66,22,13,0.75)" strokeWidth={2} />,
+      icon: <ScanLine size={24} color="#6E4A3F" strokeWidth={2} />,
       onPress: () => router.replace('/camera'),
     });
   };

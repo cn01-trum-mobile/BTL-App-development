@@ -55,15 +55,15 @@ export default function Home() {
   return (
     <View className="flex-1">
       {zoom && (
-        <View className="flex-1 bg-[#8D7162] scale-150 justify-center">
-          <Animated.View className="bg-[#FFF8E3] rounded-full aspect-square" style={animatedStyle}></Animated.View>
+        <View className="flex-1 bg-secondary-light-brown scale-150 justify-center">
+          <Animated.View className="bg-secondary-beige rounded-full aspect-square" style={animatedStyle}></Animated.View>
         </View>
       )}
       {showLogo && (
         <Animated.View className="flex-1 justify-center items-center" style={animatedStyle2}>
           <Image source={require('@/assets/images/logo.png')} />
-          <Text className="font-sunshiney text-[38px] font-semibold text-[#32343E] opacity-80 text-center mb-2">CapdeCours</Text>
-          <Text className="font-sen text-[16px] text-[#AC3C00] opacity-80 text-center mb-5">Snap Fast. Save Smart. Find Easy.</Text>
+          <Text className="font-sunshiney text-[38px] font-medium text-secondary-black text-center mb-2">CapdeCours</Text>
+          <Text className="gray-text text-primary-orange text-center mb-5">Snap Fast. Save Smart. Find Easy.</Text>
         </Animated.View>
       )}
     </View>

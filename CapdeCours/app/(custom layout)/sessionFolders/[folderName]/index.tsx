@@ -128,14 +128,14 @@ export default function SessionFolderScreen() {
           <TouchableOpacity
             onPress={() => router.replace('/gallery')}
             activeOpacity={0.8}
-            className="w-[35px] h-[35px] rounded-[11.25px] bg-[rgba(62,53,58,0.1)] flex items-center justify-center"
+            className="w-[35px] h-[35px] rounded-[11.25px] bg-[rgba(53,56,62,0.1)] flex items-center justify-center"
           >
             <ChevronLeft size={24} color="#fff" />
           </TouchableOpacity>
 
           <View className="flex-1">
-            <Text className="text-sm font-sen font-bold uppercase text-[#35383E]">{categoryName}</Text>
-            <View className="w-full h-1 bg-[#8D7162]/50 rounded-full mt-1"></View>
+            <Text className="text-sm button-text text-gray-button">{categoryName}</Text>
+            <View className="w-full h-1 bg-[#6E4A3F]/50 rounded-full mt-1"></View>
           </View>
         </View>
         <SearchBar />
@@ -147,13 +147,13 @@ export default function SessionFolderScreen() {
       ) : (
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {sessionGroups.length === 0 ? (
-            <Text className="text-center text-gray-400 mt-10 font-sen">No photos found.</Text>
+            <Text className="text-center text-gray-400 mt-10 font-poppins">No photos found.</Text>
           ) : (
             <View className="gap-y-3">
               {sessionGroups.map((session) => {
                 const isExpanded = expandedSession.includes(session.id);
-                const bgClass = isExpanded ? 'bg-[#714E43]' : 'bg-[#FFD9B3]';
-                const textClass = isExpanded ? 'text-white' : 'text-[#35383E]';
+                const bgClass = isExpanded ? 'bg-primary-brown' : 'bg-primary-beige';
+                const textClass = isExpanded ? 'text-white' : 'text-secondary-black';
 
                 return (
                   <View key={session.id}>
@@ -162,8 +162,8 @@ export default function SessionFolderScreen() {
                       activeOpacity={0.8}
                       className={`w-full flex-row items-center justify-between px-4 py-3 rounded-[22.5px] ${bgClass}`}
                     >
-                      <Text className={`font-sen font-bold text-sm uppercase ${textClass}`}>{session.title}</Text>
-                      {isExpanded ? <ChevronDown size={24} color={'#fff'} /> : <ChevronLeft size={24} color={'#714E43'} />}
+                      <Text className={`button-text ${textClass}`}>{session.title}</Text>
+                      {isExpanded ? <ChevronDown size={24} color={'#fff'} strokeWidth={3} /> : <ChevronLeft size={24} strokeWidth={3} color={'#6E4A3F'} />}
                     </TouchableOpacity>
 
                     {isExpanded && (

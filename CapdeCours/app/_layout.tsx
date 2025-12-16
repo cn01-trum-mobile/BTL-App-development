@@ -14,7 +14,7 @@ const navigationIntegration = Sentry.reactNavigationIntegration();
 Sentry.init({
   dsn: 'https://0975f19840063c5eaa0f56ab3bd3f3fb@o4510486426419200.ingest.us.sentry.io/4510486430351360',
   tracePropagationTargets: ['https://myproject.org', /^\/api\//],
-  debug: true, // Bật để xem logs khi test
+  // debug: true, // Bật để xem logs khi test
 
   // Performance Monitoring
   tracesSampleRate: 1.0, // Capture 100% transactions khi test
@@ -64,7 +64,6 @@ export default Sentry.wrap(function RootLayout() {
 
   let [fontsLoaded] = useFonts({
     sunshiney: require('@/assets/fonts/Sunshiney-Regular.ttf'),
-    sen: require('@/assets/fonts/Sen-VariableFont_wght.ttf'),
     poppins: require('@/assets/fonts/poppins.regular.ttf'),
   });
   if (!fontsLoaded) {
@@ -73,7 +72,7 @@ export default Sentry.wrap(function RootLayout() {
   return (
     <BottomActionProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaView className="flex-1 bg-[#FFF8E3]">
+        <SafeAreaView className="flex-1 bg-secondary-beige">
           <StatusBar hidden={true} />
           {/* <Button
             title="Try!"

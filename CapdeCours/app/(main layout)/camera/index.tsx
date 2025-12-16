@@ -18,7 +18,7 @@ export default function CameraScreen() {
 
   useEffect(() => {
     setAction({
-      icon: <ScanLine size={24} color="rgba(66,22,13,0.75)" strokeWidth={2} />,
+      icon: <ScanLine size={24} color="#6E4A3F" strokeWidth={2} />,
       onPress: async () => {
         if (cameraRef.current) {
           setDisabled(true);
@@ -57,9 +57,9 @@ export default function CameraScreen() {
   if (!permission.granted) {
     return (
       <View className="flex-1 justify-center items-center">
-        <Text className="text-[16px] font-sen text-[#646982] text-center leading-6 mb-5 px-1">We need your permission to use the camera</Text>
+        <Text className="sub-title text-gray-button text-center mb-5 px-1">We need your permission to use the camera</Text>
         <TouchableOpacity onPress={requestPermission} activeOpacity={0.9} className="px-6 h-[62px] rounded-xl bg-primary items-center justify-center">
-          <Text className="text-white font-sen text-[14px] font-bold uppercase opacity-80">Grant Permission</Text>
+          <Text className="text-white button-text">Grant Permission</Text>
         </TouchableOpacity>
       </View>
     );
@@ -71,13 +71,13 @@ export default function CameraScreen() {
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => setType(type === 'front' ? 'back' : 'front')}
-          className="absolute right-5 top-5 z-10 rounded-full border-3 bg-[#FFF8E3] p-1"
+          className="absolute right-5 top-5 z-10 rounded-full border-3 bg-secondary-beige p-1"
         >
-          <SwitchCamera size={24} strokeWidth={3} color={'#714A36'} />
+          <SwitchCamera size={24} strokeWidth={2} color={'#6E4A3F'} />
         </TouchableOpacity>
         {showZoom && (
-          <View className="w-3 absolute bottom-5 right-5 h-3/4 bg-primary z-10 rounded-md flex-col-reverse">
-            <View className="bg-[#FFF8E3] rounded-md" style={{ height: `${zoom * 100}%` }}></View>
+          <View className="w-3 absolute bottom-5 right-5 h-3/4 bg-primary-brown z-10 rounded-md flex-col-reverse">
+            <View className="bg-secondary-beige rounded-md" style={{ height: `${zoom * 100}%` }}></View>
           </View>
         )}
         <CameraView style={{ flex: 1, borderRadius: 12 }} ref={cameraRef} facing={type} autofocus="on" mirror={true} zoom={zoom} />

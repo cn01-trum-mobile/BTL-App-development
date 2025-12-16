@@ -189,9 +189,9 @@ export default function ImagePreviewScreen() {
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => router.replace('/camera')}
-            className="absolute right-5 top-5 z-10 rounded-full border-3 bg-[#FFF8E3] p-1"
+            className="absolute right-5 top-5 z-10 rounded-full border-3 bg-secondary-beige p-1"
           >
-            <X size={24} strokeWidth={3} color={'#714A36'} />
+            <X size={24} strokeWidth={3} color={'#6E4A3F'} />
           </TouchableOpacity>
           {/* Image */}
           {sideWay.includes(rotation) ? (
@@ -204,19 +204,19 @@ export default function ImagePreviewScreen() {
             <TouchableOpacity
               onPress={() => setShowNote(!showNote)}
               activeOpacity={0.8}
-              className="w-[60px] h-[60px] rounded-full flex items-center justify-center border border-primary"
-              style={{ backgroundColor: showNote ? '#714A36' : '#FFF8E3' }}
+              className="w-[60px] h-[60px] rounded-full flex items-center justify-center border border-primary-brown"
+              style={{ backgroundColor: showNote ? '#6E4A3F' : '#FFF8E3' }}
             >
-              {showNote ? <BookOpen size={24} color={'white'} /> : <BookText size={24} color={'#714E43'} />}
+              {showNote ? <BookOpen size={24} color={'white'} /> : <BookText size={24} color={'#6E4A3F'} />}
             </TouchableOpacity>
           </View>
           {/* Note Input */}
           {showNote && (
             <View className="absolute top-1/3 left-0 right-0 px-7">
-              <View className="bg-[#FFF8E3] rounded-2xl border-primary border">
+              <View className="bg-secondary-beige rounded-2xl border-primary-brown border">
                 {/* Header */}
-                <View className="bg-[#714A36] py-1.5 rounded-xl -mt-4 mx-auto px-12 items-center">
-                  <Text className="text-white text-center font-sen font-bold text-xl">Note</Text>
+                <View className="bg-primary-brown py-1.5 rounded-xl -mt-4 mx-auto px-12 items-center">
+                  <Text className="text-white text-center title-2">Note</Text>
                 </View>
 
                 {/* Text area */}
@@ -225,7 +225,7 @@ export default function ImagePreviewScreen() {
                     value={note}
                     onChangeText={setNote}
                     placeholder="Add a note for this photo..."
-                    className="w-full min-h-40 text-sm text-[#555] font-sen bg-transparent border-0 mb-4"
+                    className="w-full min-h-40 text-primary-gray bg-transparent border-0 mb-4 content-1"
                     multiline
                     autoFocus
                   />
