@@ -41,7 +41,15 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "capde-cours",
+          "organization": "nhom-trum-mobile-cn01"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
