@@ -1,40 +1,61 @@
-# 📸 Quản lý ảnh chụp bài giảng cho Sinh viên
+# 📸 CapdeCours - Ứng dụng Quản lý ảnh chụp bài giảng
 > 💬 **"Chụp nhanh – Lưu gọn – Tìm dễ"**
 > 
 ## 🎯 Tổng quan
-Sinh viên đi học thường có thói quen chụp ảnh bài giảng trên bảng hoặc slide chiếu. Tuy nhiên, các ảnh này thường không được sắp xếp khoa học, dẫn đến tình trạng khó tìm lại khi cần ôn tập.  
-Ứng dụng này ra đời nhằm giải quyết *nỗi đau (pain point)* đó: giúp sinh viên **chụp nhanh – lưu gọn – tìm dễ**.
+Sinh viên thường chụp ảnh bài giảng trên bảng hoặc slide trong quá trình học. Tuy nhiên, các ảnh này dễ bị trộn lẫn với ảnh cá nhân và không được tổ chức theo ngữ cảnh học tập, khiến việc tìm lại để ôn tập trở nên khó khăn.
+
+Ứng dụng này được xây dựng để giải quyết *pain point* đó, giúp người dùng **chụp nhanh – lưu gọn – tìm dễ** mà không cần thao tác thủ công phức tạp.
 
 ---
 
 ## ❓ Vấn đề & Giải pháp
 
-### Why – Tại sao?
-- Dùng album mặc định hoặc tạo album trên điện thoại quá phức tạp, sinh viên ít khi chủ động sắp xếp.  
-- Dẫn đến ảnh bị “trôi dạt”, khó quản lý và tốn nhiều thời gian tìm kiếm.  
+### 🔎 Why – Tại sao vấn đề này tồn tại?
+- Điện thoại cho phép tạo album ảnh, nhưng vì **phải làm thủ công**, sinh viên thường **quên hoặc không duy trì việc sắp xếp**.
+- Ảnh bài giảng dễ bị trộn lẫn với ảnh cá nhân, dẫn đến khó quản lý và tốn thời gian tìm kiếm.
+- Các ứng dụng lưu trữ ảnh hiện có **chưa được thiết kế riêng cho việc tổ chức ảnh theo lịch học**.
 
-### What – Thách thức
-- Cần một công cụ *nhanh, đơn giản, tự động phân loại*, nhưng không làm phức tạp trải nghiệm của sinh viên.  
+---
 
-### How – Giải pháp
-- Phát triển app chụp ảnh riêng với giao diện tối giản.  
-- Sinh viên chỉ cần nhập lịch học *một lần* (hoặc đồng bộ Google Calendar).  
-- Mỗi khi đến giờ học, ảnh chụp bằng app sẽ *tự động* phân loại theo môn học, buổi, thời gian → đặt tên có cấu trúc:  
+### 🚧 What – Thách thức
+- Cần một công cụ:
+  - **Chụp ảnh nhanh**
+  - **Phân loại tự động**
+  - **Dễ tìm lại**
+- Nhưng vẫn phải **đơn giản, trực quan**, không làm gián đoạn trải nghiệm học tập trên điện thoại.
 
-[Môn học][Buổi học][Thời gian chụp]
-### Who – Đối tượng
-- Sinh viên Bách Khoa, hoặc học sinh/sinh viên ở bất kỳ trường nào.  
-- Miễn là trường cho phép sử dụng điện thoại để chụp ảnh trong giờ học.  
+---
+
+### 💡 How – Giải pháp
+- Phát triển một **ứng dụng chụp ảnh chuyên biệt cho bài giảng** với giao diện tối giản.
+- Ứng dụng sử dụng **app lịch mặc định trên điện thoại** làm nguồn chính  
+  (bao gồm lịch từ các tài khoản đã đăng nhập trên thiết bị).
+- Người dùng có thể **thêm nhanh một sự kiện lớp học đơn lẻ ngay trong app** khi cần.
+- Khi đến đúng thời gian học, ảnh chụp bằng app sẽ được:
+  - **Tự động phân loại** theo môn học, buổi học và thời gian chụp
+  - **Lưu vào thư viện của app** với tên file có cấu trúc rõ ràng:
+`[Môn học][Buổi học][Thời gian chụp]`
+
+---
+
+### Who – Đối tượng 
+- Sinh viên, học sinh ở **bất kỳ trường nào** cho phép sử dụng điện thoại để chụp ảnh trong giờ học.
+- **Bất kỳ người dùng nào** có nhu cầu chụp ảnh và **phân loại nội dung dựa trên lịch cá nhân** (lịch học, lịch họp, lịch sinh hoạt).
+
+---
 
 ### Where – Bối cảnh sử dụng
-- Lớp học, thư viện, ký túc xá, hoặc bất kỳ nơi nào sinh viên cần lưu trữ và xem lại bài giảng.  
+- Trong lớp học khi chụp bài giảng.
+- Ở thư viện hoặc ký túc xá khi xem lại nội dung.
+- Bất kỳ đâu người dùng cần **chụp và tổ chức ảnh nhanh chóng theo ngữ cảnh thời gian**.
 
 ---
 
 ## ✨ Core Features
-- Ứng dụng quản lý ảnh bài học *đơn giản & trực quan*.  
-- Cho phép *chụp nhanh* và *phân loại tự động* theo thời khóa biểu.  
-- Ảnh được *tổ chức khoa học* theo cấu trúc định sẵn.  
+- Ứng dụng quản lý ảnh bài học **đơn giản & trực quan**.
+- **Kết nối với lịch** trên thiết bị/ Cho phép người dùng thêm sự kiện trong app.
+- Chụp ảnh nhanh và **phân loại tự động theo lịch**.
+- Ảnh được **tổ chức khoa học** theo cấu trúc thống nhất.
 
 ---
 
