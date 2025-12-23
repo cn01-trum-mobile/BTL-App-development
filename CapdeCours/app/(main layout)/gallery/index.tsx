@@ -12,21 +12,23 @@ export default function GalleryScreen() {
   const loadFolders = async () => {
     try {
       const photosDir = new Directory(Paths.document, 'photos');
-      // 1. Safety Check: If "photos" folder doesn't exist yet, create it and stop
+
+      // 1. Safety Check: Tạo folder gốc nếu chưa có
       if (!photosDir.exists) {
         photosDir.create();
         setFolders([]);
         return;
       }
-      // 2. Get list of contents
+
+      // 2. Lấy danh sách nội dung
       const contents = photosDir.list(); // Returns (File | Directory)[]
-      // 3. Filter ONLY directories (ignore loose files)
-      const folderList: string[] = [];
-      for (const item of contents) {
-        if (item instanceof Directory) {
-          folderList.push(item.name);
-        }
-      }
+
+      // 3. Lọc lấy các Folder Môn học & Sắp xếp
+      const folderList: string[] = contents
+        .filter((item) => item instanceof Directory) // Chỉ lấy thư mục (Môn học)
+        .map((item) => item.name) // Lấy tên folder
+        .sort((a, b) => a.localeCompare(b)); // Sắp xếp A-Z
+
       setFolders(folderList);
     } catch (e) {
       console.error('Error loading gallery:', e);
@@ -35,7 +37,7 @@ export default function GalleryScreen() {
     }
   };
 
-  // 4. useFocusEffect: Runs every time you navigate TO this screen
+  // 4. Reload mỗi khi quay lại màn hình này
   useFocusEffect(
     useCallback(() => {
       loadFolders();
@@ -52,11 +54,20 @@ export default function GalleryScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Empty State */}
-          {folders.length === 0 && <Text className="text-center text-gray-400 mt-10 font-sen">No folders yet. Take a photo to start!</Text>}
+          {folders.length === 0 && (
+            <Text className="text-center text-gray-400 mt-10 font-sen">
+              No folders yet. Take a photo to start!
+            </Text>
+          )}
 
-          {/* Render List */}
+          {/* Render List: Hiển thị tên Môn học */}
           {folders.map((folder) => (
-            <FolderCard key={folder} title={`${folder}`} link={`/sessionFolders/${folder}` as RelativePathString} />
+            <FolderCard 
+              key={folder} 
+              title={folder} // Tên folder là tên môn học
+              // Link chuyển hướng sang màn hình Session, truyền tên folder theo
+              link={`/sessionFolders/${folder}` as RelativePathString} 
+            />
           ))}
         </ScrollView>
       )}
