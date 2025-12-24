@@ -20,16 +20,41 @@ export default function GalleryScreen() {
         return;
       }
 
-      // 2. Lấy danh sách nội dung
-      const contents = photosDir.list(); // Returns (File | Directory)[]
+      // 2. Lấy danh sách nội dung (File | Directory)
+      const contents = photosDir.list(); 
 
-      // 3. Lọc lấy các Folder Môn học & Sắp xếp
-      const folderList: string[] = contents
-        .filter((item) => item instanceof Directory) // Chỉ lấy thư mục (Môn học)
-        .map((item) => item.name) // Lấy tên folder
-        .sort((a, b) => a.localeCompare(b)); // Sắp xếp A-Z
+      const validFolders: string[] = [];
 
-      setFolders(folderList);
+      // 3. Duyệt qua từng item để kiểm tra và lọc
+      for (const item of contents) {
+        // Chỉ xử lý nếu là Directory (Folder môn học)
+        if (item instanceof Directory) {
+            
+            // Lấy danh sách file bên trong folder môn học đó
+            const filesInside = item.list();
+            
+            // Kiểm tra xem có file ảnh (.jpg) nào không
+            const hasPhotos = filesInside.some(f => f.name.endsWith('.jpg'));
+
+            if (!hasPhotos) {
+                // TRƯỜNG HỢP RỖNG (hoặc chỉ có file .json rác): XÓA FOLDER
+                console.log(`Deleting empty folder: ${item.name}`);
+                try {
+                    item.delete(); // Xóa folder
+                } catch (delErr) {
+                    console.error(`Failed to delete ${item.name}`, delErr);
+                }
+            } else {
+                // CÓ ẢNH: Giữ lại để hiển thị
+                validFolders.push(item.name);
+            }
+        }
+      }
+
+      // 4. Sắp xếp danh sách folder còn lại (A-Z)
+      validFolders.sort((a, b) => a.localeCompare(b));
+
+      setFolders(validFolders);
     } catch (e) {
       console.error('Error loading gallery:', e);
     } finally {
@@ -37,7 +62,7 @@ export default function GalleryScreen() {
     }
   };
 
-  // 4. Reload mỗi khi quay lại màn hình này
+  // 5. Reload mỗi khi quay lại màn hình này
   useFocusEffect(
     useCallback(() => {
       loadFolders();
