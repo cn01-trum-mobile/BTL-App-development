@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, RelativePathString } from 'expo-router';
 import { ChevronLeft, ChevronDown } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { SearchBar } from '@/components/SearchBar';
@@ -11,9 +11,10 @@ interface PhotoItem {
   uri: string;
   timestamp: number;
 }
+
 interface SessionGroup {
-  id: string; // "2025-12-09"
-  title: string; // "Session - 09/12/2025"
+  id: string; // Session ID (VD: "2025-12-24") lấy từ JSON
+  title: string;
   photos: PhotoItem[];
 }
 
@@ -23,106 +24,117 @@ export default function SessionFolderScreen() {
   const [expandedSession, setExpandedSession] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Get photo metadata
-  const getPhotoMetadata = async (imageUri: string) => {
+  // Helper để đọc JSON (chuyển ra ngoài hoặc để trong đều được)
+  const readMetadata = async (jsonFile: File): Promise<{ session: string; time: string } | null> => {
     try {
-      // 1. Construct the path to the JSON sidecar file
-      // Example: .../photos/math/IMG_123.jpg -> .../photos/math/IMG_123.json
-      const jsonUri = imageUri.replace(/\.jpg$/i, '.json');
-      const jsonFile = new File(jsonUri);
-
-      // 2. Check if the note file actually exists
-      if (!jsonFile.exists) {
-        return null;
-      }
-
-      // 3. Read and Parse
       const content = await jsonFile.text();
-      const metadata = JSON.parse(content);
-
-      return metadata; // Returns { note: "...", createdAt: "...", ... }
-    } catch (error) {
-      console.error('Error reading metadata:', error);
+      return JSON.parse(content);
+    } catch (e) {
       return null;
+      console.log(e);
     }
   };
 
-  useEffect(() => {
-    loadAndGroupPhotos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folderName]);
-
-  // Get photo
-  const loadAndGroupPhotos = async () => {
+  const loadAndGroupPhotos = useCallback(async () => {
     try {
-      // Find subject folder
       if (!folderName) return;
       const photosDir = new Directory(Paths.document, 'photos');
       const subjectDir = new Directory(photosDir, folderName);
+
       if (!subjectDir.exists) {
+        setSessionGroups([]);
         return;
       }
-      // Get all photos
-      const files = subjectDir.list();
-      const photoFiles = files.filter((f) => f instanceof File && f.name.endsWith('.jpg'));
-      // Process Files & Extract Timestamps
-      const allPhotos: PhotoItem[] = photoFiles.map((file) => {
-        // Filename format: IMG_1733762432000.jpg
-        const nameParts = file.name.replace('.jpg', '').split('_');
-        const timestamp = parseInt(nameParts[1] || '0');
-        return {
-          uri: file.uri,
-          timestamp: timestamp,
-        };
-      });
-      // 3. Sort Descending (Newest first)
-      allPhotos.sort((a, b) => b.timestamp - a.timestamp);
-      // 4. Group by Date
+
+      // 1. Lấy danh sách tất cả file
+      const allFiles = subjectDir.list();
+
+      // 2. Lọc ra các file JSON (Metadata)
+      const jsonFiles = allFiles.filter((f): f is File => f instanceof File && f.name.endsWith('.json'));
+      const processedPhotos: { session: string; timestamp: number; uri: string }[] = [];
+
+      // 3. Đọc nội dung từng file JSON (Dùng Promise.all để đọc song song cho nhanh)
+      await Promise.all(
+        jsonFiles.map(async (jsonFile) => {
+          // Tìm file ảnh tương ứng (Giả sử tên file json và jpg giống nhau chỉ khác đuôi)
+          // VD: IMG_123.json -> IMG_123.jpg
+          const imageUri = jsonFile.uri.replace('.json', '.jpg');
+          const imageFile = new File(imageUri);
+
+          // Chỉ xử lý nếu file ảnh thực sự tồn tại
+          if (imageFile.exists) {
+            const metadata = await readMetadata(jsonFile);
+            if (metadata && metadata.session) {
+              processedPhotos.push({
+                uri: imageUri,
+                session: metadata.session, // Lấy SESSION từ JSON
+                timestamp: new Date(metadata.time).getTime(), // Lấy TIME từ JSON
+              });
+            }
+          }
+        })
+      );
+
+      // 4. Group ảnh theo Session (Dữ liệu lấy từ JSON)
       const groups: Record<string, PhotoItem[]> = {};
-      allPhotos.forEach((photo) => {
-        const date = new Date(photo.timestamp);
-        // Key for grouping: "2025-12-09"
-        const dateKey = format(date, 'yyyy-MM-dd');
-        if (!groups[dateKey]) {
-          groups[dateKey] = [];
+
+      processedPhotos.forEach((item) => {
+        const sessionKey = item.session; // "2025-12-24"
+
+        if (!groups[sessionKey]) {
+          groups[sessionKey] = [];
         }
-        groups[dateKey].push(photo);
+        groups[sessionKey].push({
+          uri: item.uri,
+          timestamp: item.timestamp,
+        });
       });
 
-      // 5. Convert to Array for Rendering
-      const result: SessionGroup[] = Object.keys(groups).map((dateKey, index) => {
-        const dateObj = new Date(dateKey);
-        // Calculate "Session X" number (optional logic, here simple count)
-        const sessionNumber = Object.keys(groups).length - index;
+      // 5. Sắp xếp Session từ CŨ -> MỚI để đánh số
+      const sortedDatesAsc = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+
+      // 6. Tạo mảng hiển thị
+      const result: SessionGroup[] = sortedDatesAsc.map((dateKey, index) => {
+        const sessionNumber = index + 1;
+        let dateDisplay = dateKey;
+        try {
+          dateDisplay = format(new Date(dateKey), 'dd/MM/yyyy');
+        } catch {}
+
+        // Sort ảnh trong session (Mới nhất lên đầu)
+        groups[dateKey].sort((a, b) => b.timestamp - a.timestamp);
 
         return {
           id: dateKey,
-          title: `Session ${sessionNumber} - ${format(dateObj, 'dd/MM/yyyy')}`,
+          title: `Session ${sessionNumber} - ${dateDisplay}`,
           photos: groups[dateKey],
         };
       });
-      // Sort Groups (Newest date first)
-      result.sort((a, b) => b.id.localeCompare(a.id));
+
+      // 7. Đảo ngược để Session mới nhất lên đầu UI
+      result.reverse();
+
       setSessionGroups(result);
-      // Auto-expand the first (newest) session
-      if (result.length > 0) {
-        setExpandedSession([result[0].id]);
-      }
+      if (result.length > 0) setExpandedSession([result[0].id]);
     } catch (error) {
       console.error('Error loading photos: ', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [folderName]);
 
-  const categoryName = folderName.split('_').join(' ');
+  useEffect(() => {
+    loadAndGroupPhotos();
+  }, [folderName]);
+
+  const categoryName = folderName?.split('_').join(' ') || '';
+
   const toggleSession = (id: string) => {
     setExpandedSession((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
   return (
     <View className="flex-1 px-5 pt-2">
-      {/* Header */}
       <View>
         <View className="flex-row items-center gap-4 mb-5">
           <TouchableOpacity
@@ -141,7 +153,6 @@ export default function SessionFolderScreen() {
         <SearchBar />
       </View>
 
-      {/* Sessions */}
       {loading ? (
         <ActivityIndicator size="large" color="#AC3C00" className="mt-10" />
       ) : (
@@ -170,7 +181,16 @@ export default function SessionFolderScreen() {
                       <View className="flex-row flex-wrap mt-4 mb-6">
                         {session.photos.map((photo, index) => (
                           <View key={index} className="w-[30%] m-[1.5%] aspect-square rounded-2xl overflow-hidden">
-                            <TouchableOpacity activeOpacity={0.8} onPress={async () => console.log(await getPhotoMetadata(photo.uri))}>
+                            <TouchableOpacity
+                              activeOpacity={0.8}
+                              onPress={() => {
+                                // Chuyển hướng sang màn hình chi tiết
+                                router.push({
+                                  pathname: '/imageDetails' as RelativePathString, // Trỏ tới file app/imageDetails/index.tsx
+                                  params: { uri: photo.uri }, // Truyền đường dẫn ảnh sang
+                                });
+                              }}
+                            >
                               <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
                             </TouchableOpacity>
                           </View>

@@ -18,7 +18,7 @@ import { File, Paths, Directory } from 'expo-file-system';
 import { BookOpen, BookText, Check, Download, X } from 'lucide-react-native';
 import { Alert } from '@/components/Alert';
 import * as Calendar from 'expo-calendar';
-import { endOfDay, isWithinInterval, startOfDay } from 'date-fns';
+import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import { getData } from '@/utils/asyncStorage';
 
 export default function ImagePreviewScreen() {
@@ -39,61 +39,63 @@ export default function ImagePreviewScreen() {
   const savePhoto = useCallback(() => {
     if (!uri) return;
     const now = new Date();
-    // Check if "now" is inside any of the event time slots
+    const timestamp = now.getTime(); // Lấy timestamp (ms) để đảm bảo duy nhất
+
+    // 1. XỬ LÝ FOLDER (Tên môn)
     const currentEvent = events.find((event) => {
       const start = new Date(event.startDate);
       const end = new Date(event.endDate);
       return isWithinInterval(now, { start, end });
     });
 
-    let subjectName = 'Unorganized'; // Default if no class is happening
-    let eventDetails = null;
+    let folder = 'Unorganized';
     if (currentEvent) {
-      subjectName = sanitizeFolderName(currentEvent.title);
-      eventDetails = {
-        id: currentEvent.id,
-        title: currentEvent.title,
-        calendarId: currentEvent.calendarId,
-        location: currentEvent.location,
-      };
+      folder = sanitizeFolderName(currentEvent.title);
     }
+
+    // 2. XỬ LÝ SESSION (Ngày học)
+    const session = format(now, 'yyyy-MM-dd');
+
+    // 3. XỬ LÝ NAME (Tên file chuẩn)
+    // Format: TenMon-2025-12-24-17033232323
+    const name = `${folder}-${session}-${timestamp}`;
+
+    // 4. XỬ LÝ TIME (Thời gian chụp readable)
+    const time = now.toISOString();
+
     try {
       const photosDir = new Directory(Paths.document, 'photos');
-      const subjectDir = new Directory(photosDir, subjectName);
-      // Create folder if it doesn't exist
-      if (!photosDir.exists) {
-        photosDir.create();
-      }
-      // Create folder if it doesn't exist
-      if (!subjectDir.exists) {
-        subjectDir.create();
-      }
+      const subjectDir = new Directory(photosDir, folder);
 
-      // Define Files (Image & Metadata)
-      const timestamp = now.getTime();
-      const fileName = `IMG_${timestamp}.jpg`;
-      const jsonName = `IMG_${timestamp}.json`;
+      if (!photosDir.exists) photosDir.create();
+      if (!subjectDir.exists) subjectDir.create();
 
-      const sourceFile = new File(uri); // The temp photo
-      const destFile = new File(subjectDir, fileName); // The permanent photo
-      const jsonFile = new File(subjectDir, jsonName); // The note/metadata
+      // Đặt tên file vật lý theo biến 'name'
+      const fileName = `${name}.jpg`;
+      const jsonName = `${name}.json`;
 
+      const sourceFile = new File(uri);
+      const destFile = new File(subjectDir, fileName);
+      const jsonFile = new File(subjectDir, jsonName);
+
+      // Copy ảnh
       if (!destFile.exists) {
         sourceFile.copy(destFile);
       }
-      // Save the Metadata (Note)
+
+      // Tạo Metadata
       const metadata = {
-        originalUri: uri,
-        createdAt: now.toISOString(),
-        note: note,
-        subject: subjectName,
-        event: eventDetails,
+        name: name, // Format: Folder-Session-Timestamp
+        folder: folder, // Tên môn
+        session: session, // Ngày
+        time: time, // Thời gian chụp (ISO)
+        note: note, // Ghi chú
       };
 
-      // Write the JSON content
+      // Ghi file JSON
       jsonFile.write(JSON.stringify(metadata, null, 2));
 
-      // Alert
+      // UI Feedback
       setAction({
         icon: <Check size={24} color={'white'} strokeWidth={2} />,
         onPress: () => {
@@ -101,7 +103,8 @@ export default function ImagePreviewScreen() {
         },
       });
       setVisible(true);
-      setMessage(`Saved to \n"${subjectName}"`);
+      // Thông báo cho người dùng biết đã lưu
+      setMessage(`Saved: ${fileName}`);
     } catch (error) {
       console.error('Error saving photo:', error);
     }
