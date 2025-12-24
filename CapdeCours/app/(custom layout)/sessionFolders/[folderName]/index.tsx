@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router, RelativePathString } from 'expo-router';
 import { ChevronLeft, ChevronDown } from 'lucide-react-native';
@@ -31,14 +31,11 @@ export default function SessionFolderScreen() {
       return JSON.parse(content);
     } catch (e) {
       return null;
+      console.log(e);
     }
   };
 
-  useEffect(() => {
-    loadAndGroupPhotos();
-  }, [folderName]);
-
-  const loadAndGroupPhotos = async () => {
+  const loadAndGroupPhotos = useCallback(async () => {
     try {
       if (!folderName) return;
       const photosDir = new Directory(Paths.document, 'photos');
@@ -124,7 +121,11 @@ export default function SessionFolderScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [folderName]);
+
+  useEffect(() => {
+    loadAndGroupPhotos();
+  }, [folderName]);
 
   const categoryName = folderName?.split('_').join(' ') || '';
 

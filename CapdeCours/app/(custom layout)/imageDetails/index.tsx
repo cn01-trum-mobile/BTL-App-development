@@ -1,13 +1,12 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert} from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gorhom/bottom-sheet';
-import { Trash2, Edit, Check, Folder, Plus, ChevronLeft, X, Calendar, Layers } from 'lucide-react-native';
+import { Trash2, Edit, Check, Plus, ChevronLeft, X, Layers } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
-import { SearchBar } from '@/components/SearchBar';
 import FolderCard from '@/components/Folder';
 
 // --- INTERFACES ---
@@ -373,6 +372,7 @@ export default function DetailView() {
       await jsonFile.write(JSON.stringify(newMetadata, null, 2));
     } catch (error) {
       Alert.alert('Lỗi', 'Không thể lưu thay đổi.');
+      console.error(error)
     }
   };
 
@@ -614,7 +614,7 @@ export default function DetailView() {
                   </TouchableOpacity>
                   <View className="flex-1">
                     <Text className="text-sm font-sen font-bold text-[#35383E]">CHOOSE SESSION</Text>
-                    <Text className="text-xs text-gray-500">in folder "{selectedTargetFolder}"</Text>
+                    <Text className="text-xs text-gray-500">in folder {selectedTargetFolder}</Text>
                     <View className="w-full h-1 bg-[#8D7162]/50 rounded-full mt-1"></View>
                   </View>
                 </View>
