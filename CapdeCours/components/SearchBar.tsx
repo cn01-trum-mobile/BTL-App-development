@@ -1,17 +1,40 @@
-import { Search } from 'lucide-react-native';
+import { Search, X } from 'lucide-react-native'; 
 import { TextInput, TouchableOpacity, View } from 'react-native';
 
-export function SearchBar() {
+interface SearchBarProps {
+  value?: string;
+  onChangeText?: (text: string) => void;
+  placeholder?: string;
+}
+
+export const SearchBar = ({ 
+  value, 
+  onChangeText, 
+  placeholder = "Search..." 
+}: SearchBarProps) => {
   return (
-    <View className="relative mb-8">
+    <View className="relative flex-row items-center bg-[#F5F5F5] rounded-full px-4 h-[50px] mb-5">
+      {/* Icon kính lúp bên trái: OK */}
+      <Search size={20} color="#9CA3AF" />
+      
       <TextInput
-        placeholder="Search for your photos"
-        placeholderTextColor={'#8D7162'}
-        className="w-full h-[42px] px-4 pr-12 bg-white font-sen font-bold text-sm rounded-md"
+        className="flex-1 ml-3 font-sen text-[#35383E]"
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
       />
-      <TouchableOpacity activeOpacity={0.8} className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center">
-        <Search size={20} color={'#8D7162'} />
-      </TouchableOpacity>
+
+      {value && value.length > 0 && (
+        <TouchableOpacity 
+          activeOpacity={0.8} 
+          onPress={() => onChangeText && onChangeText('')} 
+          className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center bg-gray-200"
+        >
+          {/* Đổi icon Search thành X */}
+          <X size={16} color={'#8D7162'} />
+        </TouchableOpacity>
+      )}
     </View>
   );
-}
+};

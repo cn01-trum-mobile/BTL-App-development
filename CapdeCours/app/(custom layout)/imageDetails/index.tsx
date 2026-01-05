@@ -1,13 +1,14 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert} from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gorhom/bottom-sheet';
-import { Trash2, Edit, Check, Plus, ChevronLeft, X, Layers } from 'lucide-react-native';
+import { Trash2, Edit, Check, Plus, ChevronLeft, X, Layers, Pencil } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
 import FolderCard from '@/components/Folder';
+import { clearFolderCache, updateCacheAfterMove } from '@/utils/photoCache';
 
 // --- INTERFACES ---
 interface EditableFieldProps {
@@ -70,9 +71,16 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
       <View className="mb-6 mx-3">
         <Text className="text-[#6E4A3F] mb-1 font-bold">{label}</Text>
         <View className="flex-row justify-between items-center py-1">
-          <Text className="text-base font-semibold text-neutral-800 flex-1 mr-2">{currentValue}</Text>
-          <TouchableOpacity onPress={() => onEditTrigger('folder')}>
-            <Edit size={16} color="#888" />
+          <Text className="text-base font-semibold text-neutral-800 flex-1 mr-2">
+             {/* Hiển thị Folder hiện tại */}
+             {currentValue} 
+          </Text>
+          
+          {/* NÚT BÚT CHÌ ĐỂ SỬA */}
+          <TouchableOpacity 
+             onPress={() => onEditTrigger('folder')}
+          >
+            <Edit size={16} color="#888" /> 
           </TouchableOpacity>
         </View>
       </View>
@@ -118,6 +126,18 @@ export default function DetailView() {
   // VIEW MODES: 'details' -> 'folder_selection' -> 'session_selection'
   const [viewMode, setViewMode] = useState<'details' | 'folder_selection' | 'session_selection'>('details');
 
+  // Thêm useEffect này sau snapPoints
+  useEffect(() => {
+    if (viewMode === 'details') {
+      bottomSheetRef.current?.snapToIndex(1); // Hoặc 2 để cao hơn
+    } else if (viewMode === 'folder_selection' || viewMode === 'session_selection') {
+      // Delay nhẹ để đảm bảo component đã render xong
+      setTimeout(() => {
+        bottomSheetRef.current?.snapToIndex(4); // Luôn mở full khi chọn folder/session
+      }, 50);
+    }
+  }, [viewMode]);
+
   // Data Logic
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [availableSessions, setAvailableSessions] = useState<string[]>([]); // List session của folder đang chọn
@@ -128,6 +148,7 @@ export default function DetailView() {
   // Input Create New
   const [newItemName, setNewItemName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   useEffect(() => {
     setIsCreating(false); // Tắt ô nhập liệu
@@ -246,8 +267,8 @@ export default function DetailView() {
   // A. Trigger mở màn hình chọn Folder
   const handleEditTrigger = async (field: 'name' | 'note' | 'folder') => {
     if (field === 'folder') {
-      await loadFolders();
-      setViewMode('folder_selection');
+      await loadFolders(); 
+      setViewMode('folder_selection'); 
       bottomSheetRef.current?.snapToIndex(4);
     }
   };
@@ -301,6 +322,9 @@ export default function DetailView() {
       // Kiểm tra xem có thay đổi gì không
       if (targetFolder === data.folder && targetSession === data.session) {
         setViewMode('details');
+        requestAnimationFrame(() => {
+          bottomSheetRef.current?.snapToIndex(3);
+        });
         return;
       }
 
@@ -348,8 +372,26 @@ export default function DetailView() {
         jsonUri: targetFolder !== data.folder ? newJsonFile.uri : prev.jsonUri,
       }));
 
-      Alert.alert('Thành công', `Đã chuyển sang ${targetFolder} / ${targetSession}`);
+      await updateCacheAfterMove(
+        data.folder,
+        targetFolder,
+        data.uri,
+        {
+          uri: targetFolder !== data.folder ? newImageFile.uri : data.uri,
+          session: targetSession,
+          subject: targetFolder
+        }
+      );
+
+      clearFolderCache(data.folder);
+      clearFolderCache(targetFolder);
+
+      setShowSuccessPopup(true);
+      setTimeout(() => setShowSuccessPopup(false), 2000);
       setViewMode('details');
+      requestAnimationFrame(() => {
+        bottomSheetRef.current?.snapToIndex(3);
+      });
     } catch (e) {
       Alert.alert('Lỗi', 'Không thể chuyển.');
       console.error(e);
@@ -405,6 +447,7 @@ export default function DetailView() {
               }
 
               // 3. Quay về màn hình trước
+              clearFolderCache(data.folder);
               router.back();
             } catch (error) {
               console.error('Lỗi xóa file:', error);
@@ -445,6 +488,18 @@ export default function DetailView() {
           </TouchableOpacity>
         </View>
 
+        {showSuccessPopup && (
+          <View className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 pointer-events-none">
+            <View className="bg-[#8B4513] px-6 py-4 rounded-2xl items-center shadow-lg mx-4">
+              <View className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center mb-2">
+                <Check size={24} color="white" />
+              </View>
+              <Text className="text-white text-center font-bold">Stored at folder</Text>
+              <Text className="text-white text-center font-bold">"{data.session}"</Text>
+            </View>
+          </View>
+        )}
+
         <BottomSheet
           ref={bottomSheetRef}
           index={1}
@@ -457,7 +512,7 @@ export default function DetailView() {
           enableOverDrag={false}
         >
           <BottomSheetScrollView
-            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 100 }}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 100, flexGrow: 1 }}
             onScrollBeginDrag={handleScrollBeginDrag}
           >
             {/* 1. VIEW MODE: DETAILS */}
@@ -503,188 +558,135 @@ export default function DetailView() {
 
             {/* 2. VIEW MODE: FOLDER SELECTION */}
             {viewMode === 'folder_selection' && (
-              <View>
+              <View className="flex-1">
+                {/* Header */}
                 <View className="flex-row items-center gap-4 mb-5">
-                  <TouchableOpacity
-                    onPress={() => setViewMode('details')}
-                    className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
+                  <TouchableOpacity onPress={() => setViewMode('details')} 
+                  className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
                   >
                     <ChevronLeft size={24} color="#35383E" />
                   </TouchableOpacity>
                   <View className="flex-1">
-                    <Text className="text-sm font-sen font-bold uppercase text-[#35383E]">CHOOSE FOLDER</Text>
+                    <Text className="text-sm font-sen font-bold uppercase text-[#35383E] tracking-widest">CHOOSE FOLDER</Text>
                     <View className="w-full h-1 bg-[#8D7162]/50 rounded-full mt-1"></View>
                   </View>
                 </View>
 
-                {!isCreating ? (
-                  <TouchableOpacity
-                    onPress={() => setIsCreating(true)}
-                    className="flex-row items-center justify-center p-4 mb-4 bg-[#E0E0E0] rounded-2xl border-2 border-dashed border-gray-400"
-                  >
-                    <Plus size={20} color="#555" />
-                    <Text className="font-bold text-gray-600 ml-2">CREATE NEW FOLDER</Text>
-                  </TouchableOpacity>
-                ) : (
-                  // <View className="mb-4 flex-row items-center gap-2">
-                  //   <TextInput
-                  //     value={newItemName}
-                  //     onChangeText={setNewItemName}
-                  //     placeholder="Folder Name..."
-                  //     autoFocus
-                  //     className="flex-1 bg-white p-3 rounded-xl border border-[#6E4A3F] text-[#6E4A3F]"
-                  //   />
-                  //   <TouchableOpacity onPress={handleCreateFolder} className="bg-[#6E4A3F] p-3 rounded-xl">
-                  //     <Check size={24} color="white" />
-                  //   </TouchableOpacity>
-                  //   <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-red-400 p-3 rounded-xl">
-                  //     <X size={24} color="white" />
-                  //   </TouchableOpacity>
-                  // </View>
-
-                  <View className="mb-4">
-                    {/* Container màu trắng, bo tròn giống hình */}
-                    <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm">
-                      {/* Input Field */}
-                      <TextInput
-                        value={newItemName}
-                        onChangeText={setNewItemName}
-                        placeholder="FOLDER NAME..."
-                        placeholderTextColor="#9CA3AF"
-                        autoFocus
-                        // Quan trọng: Bấm Enter trên bàn phím để Lưu
-                        onSubmitEditing={handleCreateFolder}
-                        returnKeyType="done"
-                        // Style text đậm, màu tối giống hình
-                        className="flex-1 text-[#35383E] font-bold text-base mr-2"
-                      />
-
-                      {/* Nút X (Hủy / Tắt) - Style tròn màu xám */}
-                      <TouchableOpacity
-                        onPress={() => {
-                          setIsCreating(false);
-                        }}
-                        className="bg-[#E0E0E0] p-1.5 rounded-full"
-                      >
-                        <X size={18} color="#757575" strokeWidth={3} />
-                      </TouchableOpacity>
+                {isCreating && (
+                    <View className="mb-4">
+                        <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm border border-gray-200">
+                            <TextInput
+                                value={newItemName}
+                                onChangeText={setNewItemName}
+                                placeholder="FOLDER NAME..."
+                                placeholderTextColor="#9CA3AF"
+                                autoFocus
+                                onSubmitEditing={handleCreateFolder}
+                                returnKeyType="done"
+                                className="flex-1 text-[#35383E] font-bold text-base mr-2 uppercase"
+                            />
+                          <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1.5 rounded-full">
+                            <X size={18} color="#757575" strokeWidth={3} />
+                          </TouchableOpacity>
+                        </View>
                     </View>
-                  </View>
                 )}
 
-                {/* Folder List */}
-                <View className="gap-y-1">
+                <View className="gap-y-1"> 
                   {availableFolders.map((folder) => {
-                    const isSelected = data.folder === folder;
-
+                    const currentFolderRaw = data.folder || '';
+                    const isCurrent = currentFolderRaw.trim().toLowerCase() === folder.trim().toLowerCase();
                     return (
                       <FolderCard
                         key={folder}
                         title={folder}
-                        // // 1. Truyền trạng thái active để đổi màu nền
-                        // isActive={isSelected}
-                        // 2. Override hành động bấm
                         onPress={() => handleSelectFolder(folder)}
-                        // // 3. Custom Icon bên trái (Folder thay vì Pencil)
-                        // icon={
-                        //   <Folder
-                        //     size={20}
-                        //     color={isSelected ? 'white' : '#6E4A3F'}
-                        //     fill={isSelected ? 'white' : 'transparent'} // Fill nếu được chọn cho đẹp giống hình cũ
-                        //   />
-                        // }
-                        // 4. Custom Icon bên phải (Chevron xoay ngược)
-                        rightIcon={<ChevronLeft size={20} color={isSelected ? 'white' : '#6E4A3F'} style={{ transform: [{ rotate: '180deg' }] }} />}
+                        isActive={isCurrent}
+                        rightIcon={isCurrent ? (<View className="bg-white/20 rounded-full p-1"><Check size={16} color="white" /></View>) : undefined}
                       />
                     );
                   })}
                 </View>
+
+                {/* Nút Floating Add Folder */}
+                {!isCreating && (
+                   <View className="mt-auto items-end pt-4">
+                      <TouchableOpacity 
+                          onPress={() => setIsCreating(true)}
+                          className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
+                      >
+                          <Plus size={28} color="#8B4513" strokeWidth={3} />
+                      </TouchableOpacity>
+                   </View>
+                )}
               </View>
             )}
 
             {/* 3. VIEW MODE: SESSION SELECTION */}
             {viewMode === 'session_selection' && (
-              <View>
+              <View className="flex-1">
                 <View className="flex-row items-center gap-4 mb-5">
-                  <TouchableOpacity
-                    onPress={() => setViewMode('folder_selection')}
-                    className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
-                  >
-                    <ChevronLeft size={24} color="#35383E" />
+                  <TouchableOpacity onPress={() => setViewMode('folder_selection')} className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center">
+                  <ChevronLeft size={24} color="#35383E" />
                   </TouchableOpacity>
-                  <View className="flex-1">
+                  <View>
                     <Text className="text-sm font-sen font-bold text-[#35383E]">CHOOSE SESSION</Text>
-                    <Text className="text-xs text-gray-500">in folder {selectedTargetFolder}</Text>
-                    <View className="w-full h-1 bg-[#8D7162]/50 rounded-full mt-1"></View>
+                    <View className="h-[2px] w-full bg-[#6E4A3F] mt-1 opacity-20" />
                   </View>
                 </View>
 
-                {/* Create Session Input */}
-                {!isCreating ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setIsCreating(true);
-                      setNewItemName(format(new Date(), 'yyyy-MM-dd')); // Mặc định là ngày hôm nay
-                    }}
-                    className="flex-row items-center justify-center p-4 mb-4 bg-[#E0E0E0] rounded-2xl border-2 border-dashed border-gray-400"
-                  >
-                    <Plus size={20} color="#555" />
-                    <Text className="font-bold text-gray-600 ml-2">CREATE NEW SESSION</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View className="mb-4">
-                    {/* Container màu trắng, bo tròn giống hình */}
-                    <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm">
-                      {/* Input Field */}
-                      <TextInput
-                        value={newItemName}
-                        onChangeText={setNewItemName}
-                        placeholder="SESSION NAME..."
-                        placeholderTextColor="#9CA3AF"
-                        autoFocus
-                        // Quan trọng: Bấm Enter trên bàn phím để Lưu
-                        onSubmitEditing={handleCreateSession}
-                        returnKeyType="done"
-                        // Style text đậm, màu tối giống hình
-                        className="flex-1 text-[#35383E] font-bold text-base mr-2"
-                      />
-
-                      {/* Nút X (Hủy / Tắt) - Style tròn màu xám */}
-                      <TouchableOpacity
-                        onPress={() => {
-                          setNewItemName('');
-                          setIsCreating(false);
-                        }}
-                        className="bg-[#E0E0E0] p-1.5 rounded-full"
-                      >
-                        <X size={18} color="#757575" strokeWidth={3} />
-                      </TouchableOpacity>
+                {isCreating && (
+                    <View className="mb-4">
+                        <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm border border-gray-200">
+                            <TextInput
+                                value={newItemName}
+                                onChangeText={setNewItemName}
+                                placeholder="SESSION NAME..."
+                                placeholderTextColor="#9CA3AF"
+                                autoFocus
+                                onSubmitEditing={handleCreateSession}
+                                returnKeyType="done"
+                                className="flex-1 text-[#35383E] font-bold text-base mr-2 uppercase"
+                            />
+                            <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1 rounded-full">
+                                <X size={16} color="#757575" strokeWidth={3} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                  </View>
                 )}
 
-                <Text className="mb-2 font-bold text-gray-500 text-xs uppercase">Existing Sessions</Text>
-
                 <View className="gap-y-3">
-                  {availableSessions.length === 0 && <Text className="text-center text-gray-400 italic py-4">No existing sessions found in this folder.</Text>}
                   {availableSessions.map((session) => (
                     <TouchableOpacity
                       key={session}
-                      onPress={() => handleSelectSession(session)} // Chọn xong là Move luôn
-                      className={`w-full flex-row items-center px-4 py-3 rounded-[22.5px] ${data.session === session && data.folder === selectedTargetFolder ? 'bg-[#6E4A3F]' : 'bg-[#FFD9B3]'}`}
+                      onPress={() => handleSelectSession(session)}
+                      className="w-full flex-row items-center justify-between px-5 py-4 rounded-[20px] bg-[#FFE4C4]"
                     >
-                      <View className={`p-2 rounded-full mr-3 ${data.session === session ? 'bg-white/20' : 'bg-white/50'}`}>
-                        <Layers size={20} color={data.session === session ? 'white' : '#6E4A3F'} />
-                      </View>
-                      <Text className={`font-bold text-base ${data.session === session ? 'text-white' : 'text-[#6E4A3F]'}`}>{session}</Text>
-                      {data.session === session && data.folder === selectedTargetFolder && (
-                        <View className="ml-auto">
-                          <Check size={20} color="white" />
-                        </View>
-                      )}
+                      <Text className="font-bold text-[#4B3B36] text-sm uppercase">{session}</Text>
+                      <ChevronLeft size={20} color="#4B3B36" style={{ transform: [{ rotate: '180deg' }] }} />
                     </TouchableOpacity>
                   ))}
+                   {availableSessions.length === 0 && (
+                       <Text className="text-gray-400 text-center italic mt-4">No sessions found in this folder.</Text>
+                   )}
                 </View>
+
+                {/* Floating Add Session */}
+                 {!isCreating && (
+                     <View className="mt-auto items-end pt-4">
+                        <TouchableOpacity 
+                            onPress={() => {
+                              if (!isCreating) {
+                                setNewItemName(format(new Date(), 'yyyy-MM-dd'));
+                              }
+                              setIsCreating(true);
+                            }}
+                            className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
+                        >
+                            <Plus size={28} color="#8B4513" strokeWidth={3} />
+                        </TouchableOpacity>
+                     </View>
+                 )}
               </View>
             )}
           </BottomSheetScrollView>
