@@ -1,10 +1,10 @@
 // app/(main layout)/schedule/addEvent.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, Clock, ChevronLeft } from 'lucide-react-native';
+import { Calendar as CalendarIcon, Clock } from 'lucide-react-native';
 import { createEvent, updateEvent, deleteEvent } from '@/app/services/calendarActions';
 import { UnifiedEvent } from '@/app/types/calendarTypes';
 

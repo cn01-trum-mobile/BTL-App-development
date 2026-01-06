@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { addDays, differenceInMinutes, endOfDay, format, isSameDay, startOfDay, startOfWeek } from 'date-fns';
 import { CalendarPlus } from 'lucide-react-native';

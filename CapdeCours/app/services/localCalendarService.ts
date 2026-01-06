@@ -1,7 +1,7 @@
 // services/localCalendarService.ts
 import { getData, storeData } from '@/utils/asyncStorage';
 import { UnifiedEvent } from '../types/calendarTypes';
-import { v4 as uuidv4 } from 'uuid'; // Nếu chưa có uuid thì dùng Math.random() tạm
+// import { v4 as uuidv4 } from 'uuid'; // Nếu chưa có uuid thì dùng Math.random() tạm
 
 const LOCAL_DB_KEY = 'MY_APP_LOCAL_EVENTS';
 
