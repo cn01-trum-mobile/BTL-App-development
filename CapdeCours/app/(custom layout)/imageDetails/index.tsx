@@ -8,7 +8,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
 import FolderCard from '@/components/Folder';
-import { clearFolderCache, updateCacheAfterMove } from '@/utils/photoCache';
+import { clearFolderCache, updateCacheAfterMove,  getPhotosFromCache, savePhotosToCache } from '@/utils/photoCache';
+import Swiper from 'react-native-swiper';
+import { Dimensions } from 'react-native';
+
+const { width, height } = Dimensions.get('window');
+
 
 // --- INTERFACES ---
 interface EditableFieldProps {
@@ -125,6 +130,9 @@ export default function DetailView() {
 
   // VIEW MODES: 'details' -> 'folder_selection' -> 'session_selection'
   const [viewMode, setViewMode] = useState<'details' | 'folder_selection' | 'session_selection'>('details');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [loadingMetadata, setLoadingMetadata] = useState(false);
 
   // Thêm useEffect này sau snapPoints
   useEffect(() => {
@@ -224,6 +232,81 @@ export default function DetailView() {
       console.error(e);
     }
   };
+
+  const loadAllPhotosInFolder = async () => {
+    try {
+      if (photos.length === 0) {
+        setLoading(true);
+      }
+      
+      const photosDir = new Directory(Paths.document, 'photos');
+      const currentFolderDir = new Directory(photosDir, data.folder);
+      
+      if (!currentFolderDir.exists) {
+        setPhotos([data.uri]);
+        setLoading(false);
+        return;
+      }
+      
+      const files = currentFolderDir.list();
+      const imageFiles = files.filter((f): f is File => 
+        f instanceof File && 
+        (f.name.toLowerCase().endsWith('.jpg') || 
+        f.name.toLowerCase().endsWith('.jpeg') ||
+        f.name.toLowerCase().endsWith('.png'))
+      );
+      
+      const photosWithTime = await Promise.all(
+        imageFiles.map(async (file) => {
+          try {
+            const jsonPath = file.uri.replace(/\.(jpg|jpeg|png)$/i, '.json');
+            const jsonFile = new File(jsonPath);
+            
+            if (jsonFile.exists) {
+              const content = await jsonFile.text();
+              const metadata = JSON.parse(content);
+              return {
+                uri: file.uri,
+                time: metadata.time || new Date().toISOString(),
+                session: metadata.session || ''
+              };
+            }
+            return {
+              uri: file.uri,
+              time: new Date().toISOString(),
+              session: ''
+            };
+          } catch {
+            return {
+              uri: file.uri,
+              time: new Date().toISOString(),
+              session: ''
+            };
+          }
+        })
+      );
+      
+      photosWithTime.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+      
+      const sortedUris = photosWithTime.map(photo => photo.uri);
+      
+      const currentIndex = sortedUris.findIndex(uri => uri === data.uri);
+      setCurrentPhotoIndex(currentIndex >= 0 ? currentIndex : 0);
+      setPhotos(sortedUris);
+    } catch (error) {
+      console.error('Error loading photos:', error);
+      setPhotos([data.uri]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (data.folder && data.uri) {
+      loadAllPhotosInFolder();
+    }
+  }, [data.folder, data.uri]);
+
 
   // --- LOGIC 2: LOAD SESSIONS CỦA MỘT FOLDER ---
   const loadSessionsForFolder = async (folderName: string) => {
@@ -393,7 +476,7 @@ export default function DetailView() {
         bottomSheetRef.current?.snapToIndex(3);
       });
     } catch (e) {
-      Alert.alert('Lỗi', 'Không thể chuyển.');
+      Alert.alert('Error', 'Could not move image.');
       console.error(e);
     } finally {
       setLoading(false);
@@ -412,16 +495,39 @@ export default function DetailView() {
       }
       const newMetadata = { ...existingContent, [field]: newValue };
       await jsonFile.write(JSON.stringify(newMetadata, null, 2));
+      
+      // === CẬP NHẬT CACHE ===
+      if (field === 'note') {
+        try {
+          const currentCache = await getPhotosFromCache(data.folder);
+          if (currentCache) {
+            const updatedCache = currentCache.map(photo => {
+              if (photo.uri === data.uri) {
+                return {
+                  ...photo,
+                  note: newValue
+                };
+              }
+              return photo;
+            });
+            
+            await savePhotosToCache(data.folder, updatedCache);
+            console.log('Cache updated after note edit');
+          }
+        } catch (cacheError) {
+          console.error('Error updating cache:', cacheError);
+        }
+      }
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể lưu thay đổi.');
-      console.error(error)
+      Alert.alert('Error', 'Could not save changes.');
+      console.error(error);
     }
   };
 
   const handleDelete = () => {
     Alert.alert(
-      'Xóa ảnh', // Tiêu đề
-      'Bạn có chắc chắn muốn xóa ảnh này không? Hành động này không thể hoàn tác.', // Nội dung
+      'Image Deletion',
+      'Do you want to delete this image? This action cannot be undone.',
       [
         {
           text: 'Hủy',
@@ -429,7 +535,7 @@ export default function DetailView() {
         },
         {
           text: 'Xóa',
-          style: 'destructive', // Làm nút này màu đỏ (trên iOS)
+          style: 'destructive',
           onPress: async () => {
             try {
               setLoading(true);
@@ -446,12 +552,25 @@ export default function DetailView() {
                 await jsonFile.delete();
               }
 
-              // 3. Quay về màn hình trước
+              // 3. Cập nhật danh sách ảnh
+              const newPhotos = photos.filter(uri => uri !== data.uri);
+              setPhotos(newPhotos);
+              
+              // 4. Nếu còn ảnh, chuyển đến ảnh trước đó
+              if (newPhotos.length > 0) {
+                const newIndex = Math.max(0, currentPhotoIndex - 1);
+                setCurrentPhotoIndex(newIndex);
+                await loadPhotoMetadata(newPhotos[newIndex]);
+              } else {
+                // Nếu không còn ảnh nào, quay về
+                clearFolderCache(data.folder);
+                router.back();
+              }
+              
               clearFolderCache(data.folder);
-              router.back();
             } catch (error) {
               console.error('Lỗi xóa file:', error);
-              Alert.alert('Lỗi', 'Không thể xóa ảnh, vui lòng thử lại.');
+              Alert.alert('Error', 'Could not delete the image.');
               setLoading(false);
             }
           },
@@ -472,21 +591,122 @@ export default function DetailView() {
     );
   }
 
+  const loadPhotoMetadata = async (photoUri: string) => {
+    try {
+      setLoadingMetadata(true); 
+      
+      const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
+      const jsonFile = new File(jsonPath);
+      
+      let metadata = { name: '', folder: '', time: '', note: '', session: '' };
+      
+      if (jsonFile.exists) {
+        const content = await jsonFile.text();
+        metadata = JSON.parse(content);
+      }
+      
+      let displayTime = metadata.time;
+      try {
+        displayTime = format(new Date(metadata.time), 'h:mma EEEE, MMM do yyyy');
+      } catch {}
+      
+      setData({
+        name: metadata.name || 'Untitled',
+        folder: metadata.folder || 'Unorganized',
+        time: displayTime,
+        note: metadata.note || '',
+        uri: photoUri,
+        jsonUri: jsonPath,
+        rawTime: metadata.time,
+        session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
+      });
+    } catch (error) {
+      console.error('Error loading photo metadata:', error);
+    } finally {
+      setLoadingMetadata(false);
+    }
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View className="flex-1 bg-gray-100">
-        <View className="h-full relative">
+
+        
+        {/* <View className="h-full relative">
           <Image source={{ uri: data.uri }} className="w-full h-full" resizeMode="cover" />
-          {/* Back Button */}
+          
           <TouchableOpacity onPress={() => router.back()} className="absolute top-12 left-4 p-2 bg-black/20 rounded-full">
             <Text className="text-white text-xl font-bold">←</Text>
           </TouchableOpacity>
 
-          {/* Delete Button*/}
+          
           <TouchableOpacity onPress={handleDelete} className="absolute top-12 right-4 p-2 bg-black/20 rounded-full">
             <Trash2 size={22} color="white" />
           </TouchableOpacity>
+        </View> */}
+
+        <View className="h-full relative">
+          {/* Thay Image bằng Swiper */}
+          {photos.length > 0 ? (
+            <Swiper
+              index={currentPhotoIndex}
+              loop={false}
+              showsPagination={true}
+              paginationStyle={{ bottom: 20 }}
+              dotColor="rgba(255,255,255,0.3)"
+              activeDotColor="#FFFFFF"
+              onIndexChanged={(index) => {
+                setCurrentPhotoIndex(index);
+                // Cập nhật data với ảnh hiện tại
+                if (photos[index] !== data.uri) {
+                  const newUri = photos[index];
+                  // Load metadata của ảnh mới
+                  loadPhotoMetadata(newUri);
+                }
+              }}
+            >
+              {photos.map((photoUri, index) => (
+                <View key={index} className="flex-1 justify-center bg-black">
+                  <Image 
+                    source={{ uri: photoUri }} 
+                    className="w-full h-full" 
+                    resizeMode="contain"
+                  />
+                </View>
+              ))}
+            </Swiper>
+          ) : (
+            <Image source={{ uri: data.uri }} className="w-full h-full" resizeMode="cover" />
+          )}
+          
+          {/* Back Button */}
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            className="absolute top-12 left-4 p-2 bg-black/50 rounded-full"
+          >
+            <Text className="text-white text-xl font-bold">←</Text>
+          </TouchableOpacity>
+
+          {/* Delete Button - chỉ hiển thị khi không có Swiper hoặc ở ảnh đầu */}
+          <TouchableOpacity 
+            onPress={handleDelete} 
+            className="absolute top-12 right-4 p-2 bg-black/50 rounded-full"
+          >
+            <Trash2 size={22} color="white" />
+          </TouchableOpacity>
+          
+          {/* Counter hiển thị số thứ tự ảnh */}
+          {photos.length > 1 && (
+            <View className="absolute top-20 right-4 bg-black/50 px-3 py-1 rounded-full">
+              <Text className="text-white text-sm font-semibold">
+                {currentPhotoIndex + 1}/{photos.length}
+              </Text>
+            </View>
+          )}
         </View>
+
+
+
 
         {showSuccessPopup && (
           <View className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 pointer-events-none">

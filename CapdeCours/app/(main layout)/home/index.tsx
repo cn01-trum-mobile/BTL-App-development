@@ -3,6 +3,8 @@ import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator } fr
 import { CalendarPlus } from 'lucide-react-native';
 import { addDays, format, isSameDay, startOfWeek, endOfDay, startOfDay, differenceInMinutes } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native'; // Hoặc 'expo-router'
+import { File, Directory, Paths } from 'expo-file-system';
+import { router } from 'expo-router';
 
 // --- NEW CODE: Import Hook mới ---
 import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
@@ -15,6 +17,12 @@ export default function Home() {
   // Hook tự quản lý loading và events rồi, không cần useState thủ công nữa
   const { events, loading, loadEvents } = useUnifiedCalendar();
   // ---------------------------------------------
+
+  const [unorganizedImages, setUnorganizedImages] = useState<string[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [totalUnorganizedImages, setTotalUnorganizedImages] = useState(0); 
+
+
 
   // Tính toán tuần hiển thị
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -32,6 +40,55 @@ export default function Home() {
     }, [selectedDate, loadEvents])
   );
   // ----------------------------------------
+
+  // Load unorganized images
+  const loadUnorganizedImages = async () => {
+    try {
+      setLoadingImages(true);
+      const photosDir = new Directory(Paths.document, 'photos');
+      const unorganizedDir = new Directory(photosDir, 'Unorganized');
+      
+      if (!unorganizedDir.exists) {
+        setUnorganizedImages([]);
+        setTotalUnorganizedImages(0);
+        return;
+      }
+      
+      const files = unorganizedDir.list();
+      
+      const imageFiles = files.filter((f): f is File => 
+        f instanceof File && 
+        (f.name.toLowerCase().endsWith('.jpg') || 
+        f.name.toLowerCase().endsWith('.jpeg') ||
+        f.name.toLowerCase().endsWith('.png'))
+      );
+      
+      // Lấy tất cả ảnh nhưng chỉ hiển thị 2 ảnh đầu
+      const allImageUris = imageFiles.map(file => file.uri);
+      setUnorganizedImages(allImageUris.slice(0, 2));
+      
+      // Lưu tổng số ảnh
+      setTotalUnorganizedImages(allImageUris.length);
+    } catch (error) {
+      console.error('Error loading unorganized images:', error);
+      setUnorganizedImages([]);
+      setTotalUnorganizedImages(0);
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
+
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUnorganizedImages();
+      
+      const start = startOfDay(selectedDate);
+      const end = endOfDay(selectedDate);
+      loadEvents(start, end);
+    }, [selectedDate, loadEvents])
+  );
 
   return (
     <ScrollView className="flex-1 px-5 bg-[#FFF8E3] pt-10" showsVerticalScrollIndicator={false}>
@@ -128,21 +185,74 @@ export default function Home() {
       </View>
 
       {/* Bottom section (Banner) */}
-      <View className="bg-[#3E2C22] rounded-[14px] p-4 -mx-4 shadow-lg mb-10">
+       <View className="bg-[#3E2C22] rounded-[14px] p-4 -mx-4 shadow-lg mb-10">
         <View className="bg-[#FFE8BB] rounded-[14px] p-4 my-4 relative">
-          <Text className="text-center text-[#8D7162] font-sen font-semibold text-base mb-4">Classify unorganized images now!</Text>
-          <View className="flex-row justify-center gap-4">
-            <Image
-              source={{ uri: 'https://api.builder.io/api/v1/image/assets/TEMP/95b04280b55e01348191c16f60da62da3283e88f?width=314' }}
-              className="w-32 h-24 rounded-lg bg-gray-300"
-              resizeMode="cover"
-            />
-            <Image
-              source={{ uri: 'https://api.builder.io/api/v1/image/assets/TEMP/4eb24e44fc1d974992559a05b185a1168bbb9eed?width=314' }}
-              className="w-32 h-24 rounded-lg bg-gray-300"
-              resizeMode="cover"
-            />
-          </View>
+          <Text className="text-center text-[#8D7162] font-sen font-semibold text-base mb-4">
+            {unorganizedImages.length > 0 
+              ? 'Classify unorganized images now!' 
+              : 'All images are organized! 🎉'}
+          </Text>
+          
+          {loadingImages ? (
+            <View className="py-8">
+              <ActivityIndicator size="small" color="#8D7162" />
+            </View>
+          ) : unorganizedImages.length > 0 ? (
+            <View className="flex-row justify-center gap-4">
+              {unorganizedImages.map((uri, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => {
+                    // Navigate to ImageDetail với uri của ảnh
+                    router.push({
+                      pathname: '/imageDetails',
+                      params: { uri: uri },
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Image
+                    source={{ uri }}
+                    className="w-32 h-24 rounded-lg bg-gray-300"
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              ))}
+              {/* Nếu chỉ có 1 ảnh, thêm placeholder */}
+              {unorganizedImages.length === 1 && (
+                <View className="w-32 h-24 rounded-lg bg-gray-200 flex items-center justify-center">
+                  <Text className="text-gray-400 text-xs">+ more</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View className="py-4 items-center">
+              <Text className="text-[#8D7162] font-sen text-sm text-center">
+                All your photos are neatly organized in folders.
+              </Text>
+              <Text className="text-[#8D7162] font-sen text-xs text-center mt-2">
+                Great job!
+              </Text>
+            </View>
+          )}
+          
+          {/* Nút để navigate tới folder Unorganized */}
+          {unorganizedImages.length > 0 && (
+            <TouchableOpacity 
+              className="mt-4 bg-[#AC3C00] py-2 px-4 rounded-lg"
+              onPress={() => {
+                // Navigate tới folder Unorganized
+                router.push({
+                  pathname: '/sessionFolders/[folderName]', // Updated pathname
+                  params: { folderName: 'Unorganized' }
+                });
+              }}
+            >
+              <Text className="text-center text-white font-sen font-semibold text-base">
+                {`View ${totalUnorganizedImages} unorganized images`}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </ScrollView>

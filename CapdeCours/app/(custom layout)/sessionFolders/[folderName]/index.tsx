@@ -60,9 +60,13 @@ export default function SessionFolderScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!loading) {
-        loadAndGroupPhotos();
-      }
+      const refreshData = async () => {
+        if (folderName) {
+          await clearFolderCache(folderName);
+          loadAndGroupPhotos(true); // force reload
+        }
+      };
+      refreshData();
     }, [folderName])
   );
 

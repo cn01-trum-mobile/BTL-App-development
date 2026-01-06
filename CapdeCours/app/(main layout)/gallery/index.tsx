@@ -2,10 +2,12 @@ import FolderCard from '@/components/Folder';
 import { SearchBar } from '@/components/SearchBar';
 import { Directory, Paths } from 'expo-file-system';
 import { RelativePathString, router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity } from 'react-native';
+import { useCallback, useState, useRef } from 'react';
+import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity, Alert, TextInput, Animated, PanResponder, Modal } from 'react-native';
 import { File} from 'expo-file-system';
-import { getPhotosFromCache, PhotoItem,  savePhotosToCache } from '@/utils/photoCache';
+import { getPhotosFromCache, PhotoItem,  savePhotosToCache, clearFolderCache } from '@/utils/photoCache';
+import { Edit2, Trash2, Check, X } from 'lucide-react-native';
+
 
 interface GlobalPhotoItem extends PhotoItem {
   folderName: string;
@@ -17,6 +19,16 @@ export default function GalleryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<string>('');
+  const [newFolderName, setNewFolderName] = useState('');
+
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState<string>('');
+
+  const swipeAnimations = useRef<{[key: string]: Animated.Value}>({});
 
   const removeAccents = (str: string) => {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -64,7 +76,6 @@ export default function GalleryScreen() {
         f instanceof File && f.name.toLowerCase().endsWith('.json')
       );
       
-      console.log(`🔨 Rebuilding cache for "${folderName}": ${jsonFiles.length} json files found`);
       
       const photos: PhotoItem[] = [];
       
@@ -129,7 +140,6 @@ export default function GalleryScreen() {
         .filter(i => i instanceof Directory)
         .map(d => d.name);
 
-      console.log('📁 Found folders in filesystem:', folderNames);
 
       const validFolders: string[] = [];
       const allPhotos: GlobalPhotoItem[] = [];
@@ -137,16 +147,12 @@ export default function GalleryScreen() {
       for (const folderName of folderNames) {
         const hasPhotos = await checkFolderHasPhotos(folderName);
         
-        console.log(`📂 Folder "${folderName}": hasPhotos = ${hasPhotos}`);
-        
         if (hasPhotos) {
           validFolders.push(folderName);
           
-          const photos = await getPhotosFromCache(folderName);
-          console.log(`📂 Folder "${folderName}": ${photos?.length || 0} photos in cache`);
+          const photos = await getPhotosFromCache(folderName);          
 
           if (!photos || photos.length === 0) {
-            console.log(`🔄 Cache empty, rebuilding for "${folderName}"...`);
             const rebuiltPhotos = await rebuildCacheForFolder(folderName);
             
             if (rebuiltPhotos && rebuiltPhotos.length > 0) {
@@ -159,6 +165,10 @@ export default function GalleryScreen() {
               allPhotos.push({ ...p, folderName });
             });
           }
+
+          if (!swipeAnimations.current[folderName]) {
+            swipeAnimations.current[folderName] = new Animated.Value(0);
+          }
         } else {
           console.log(`Skipping folder "${folderName}" as it has no photos.`);
         }
@@ -170,7 +180,6 @@ export default function GalleryScreen() {
       uniqueFolders.sort((a, b) => a.localeCompare(b));
       allPhotos.sort((a, b) => b.timestamp - a.timestamp);
 
-      console.log('✅ Final unique folders:', uniqueFolders);
       setFolders(uniqueFolders);
       setAllPhotos(allPhotos);
     } catch (e) {
@@ -187,9 +196,136 @@ export default function GalleryScreen() {
     }, [])
   );
 
+
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+  };
+
+
+  // Hàm mở modal đổi tên
+  const handleRenameFolder = (folderName: string) => {
+    setSelectedFolder(folderName);
+    setNewFolderName(folderName);
+    setRenameModalVisible(true);
+  };
+
+  // Hàm xác nhận đổi tên
+  const confirmRenameFolder = async () => {
+    if (!newFolderName.trim() || newFolderName === selectedFolder) {
+      setRenameModalVisible(false);
+      return;
+    }
+
+    try {
+      // Kiểm tra tên mới đã tồn tại chưa
+      if (folders.includes(newFolderName.trim())) {
+        Alert.alert('Error', 'Folder name already exists.');
+        return;
+      }
+
+      const photosDir = new Directory(Paths.document, 'photos');
+      const oldFolder = new Directory(photosDir, selectedFolder);
+      const newFolder = new Directory(photosDir, newFolderName.trim());
+
+      if (!oldFolder.exists) {
+        Alert.alert('Error', 'Source folder does not exist.');
+        return;
+      }
+
+      if (newFolder.exists) {
+        Alert.alert('Error', 'Destination folder already exists.');
+        return;
+      }
+
+      await oldFolder.move(newFolder);
+
+      const files = newFolder.list();
+      const jsonFiles = files.filter((f): f is File => 
+        f instanceof File && f.name.toLowerCase().endsWith('.json')
+      );
+
+      await Promise.all(
+        jsonFiles.map(async (jsonFile) => {
+          try {
+            const content = await jsonFile.text();
+            const metadata = JSON.parse(content);
+            
+            metadata.folder = newFolderName.trim();
+            metadata.subject = newFolderName.trim();
+            
+            await jsonFile.write(JSON.stringify(metadata, null, 2));
+          } catch (e) {
+            console.error(`Error updating ${jsonFile.name}:`, e);
+          }
+        })
+      );
+
+      clearFolderCache(selectedFolder);
+      clearFolderCache(newFolderName.trim());
+
+      setFolders(prev => prev.map(f => f === selectedFolder ? newFolderName.trim() : f));
+      
+      Alert.alert('Success', 'Folder renamed successfully.');
+    } catch (error) {
+      console.error('Error renaming folder:', error);
+      Alert.alert('Error', 'Failed to rename folder.');
+    } finally {
+      setRenameModalVisible(false);
+      loadData(); // Refresh
+    }
+  };
+
+  // Hàm mở modal xác nhận xóa
+  const handleDeleteFolderClick = (folderName: string) => {
+    setFolderToDelete(folderName);
+    setDeleteModalVisible(true);
+  };
+
+  // Hàm xác nhận xóa folder
+  // Hàm xóa folder (sau khi xác nhận)
+  const confirmDeleteFolder = async () => {
+    if (!folderToDelete) return;
+
+    try {
+      const photosDir = new Directory(Paths.document, 'photos');
+      const folderToDeleteDir = new Directory(photosDir, folderToDelete);
+      
+      if (!folderToDeleteDir.exists) {
+        Alert.alert('Error', 'Folder does not exist.');
+        return;
+      }
+
+      const files = folderToDeleteDir.list();
+      
+      const fileDeletionPromises = files
+        .filter((file): file is File => file instanceof File)
+        .map(async (file) => {
+          try {
+            await file.delete();
+          } catch (error) {
+            console.error(`Error deleting ${file.name}:`, error);
+            throw error;
+          }
+        });
+      
+      await Promise.all(fileDeletionPromises);
+      
+      folderToDeleteDir.delete();
+      
+      clearFolderCache(folderToDelete);
+      
+      setFolders(prev => prev.filter(f => f !== folderToDelete));
+      setAllPhotos(prev => prev.filter(photo => photo.folderName !== folderToDelete));
+      
+      Alert.alert('Success', 'Folder deleted successfully.');
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      Alert.alert('Error', 'Failed to delete folder.');
+    } finally {
+      setDeleteModalVisible(false);
+      setFolderToDelete('');
+    }
   };
 
   const filteredFolders = folders.filter((folderName) => 
@@ -218,6 +354,77 @@ export default function GalleryScreen() {
           placeholder="Search (notes, subjects)..." 
       />
 
+      {/* Rename Folder Modal */}
+      <Modal
+        visible={renameModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setRenameModalVisible(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/50">
+          <View className="bg-[#fff8e3] rounded-2xl p-6 w-80">
+            <Text className="text-xl font-bold text-primary mb-4">Rename Folder</Text>
+            
+            <TextInput
+              value={newFolderName}
+              onChangeText={setNewFolderName}
+              placeholder="Enter new folder name"
+              className="border border-gray-300 rounded-xl px-4 py-3 mb-6"
+              autoFocus
+            />
+            
+            <View className="flex-row justify-end gap-3">
+              <TouchableOpacity 
+                onPress={() => setRenameModalVisible(false)}
+                className="px-4 py-2 rounded-lg"
+              >
+                <Text className="text-gray-600">Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                onPress={confirmRenameFolder}
+                className="bg-primary px-4 py-2 rounded-lg"
+              >
+                <Text className="text-white">Rename</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/50">
+          <View className="bg-[#fff8e3] rounded-2xl p-6 w-80">
+            <Text className="text-xl font-bold text-primary mb-2">Delete Folder</Text>
+            <Text className="text-gray-600 mb-6">
+              Are you sure you want to delete "{folderToDelete}"? This action cannot be undone.
+            </Text>
+            
+            <View className="flex-row justify-end gap-3">
+              <TouchableOpacity 
+                onPress={() => setDeleteModalVisible(false)}
+                className="px-4 py-2 rounded-lg"
+              >
+                <Text className="text-gray-600">Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                onPress={confirmDeleteFolder}
+                className="bg-primary px-4 py-2 rounded-lg"
+              >
+                <Text className="text-white">Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {loading ? (
         <View className="mt-10">
           <ActivityIndicator size="large" color="#AC3C00" />
@@ -237,7 +444,10 @@ export default function GalleryScreen() {
                     <FolderCard 
                         key={folder} 
                         title={folder} 
-                        link={`/sessionFolders/${folder}` as RelativePathString} 
+                        link={`/sessionFolders/${folder}` as RelativePathString}
+                        onEditPress={() => handleRenameFolder(folder)}
+                        onDeletePress={() => handleDeleteFolderClick(folder)}
+                        showActions={!isSearching}
                     />
                     ))
                 )}

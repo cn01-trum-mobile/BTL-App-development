@@ -1,5 +1,5 @@
 import { useBottomAction } from '@/context/NavActionContext';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -31,6 +31,8 @@ import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import { getData } from '@/utils/asyncStorage';
 import * as FileSystem from 'expo-file-system'; 
 import { PhotoItem, addPhotoToCache } from '@/utils/photoCache';
+
+
 
 export default function ImagePreviewScreen() {
   const { uri, rotation } = useLocalSearchParams<{ uri: string; rotation: string }>();
