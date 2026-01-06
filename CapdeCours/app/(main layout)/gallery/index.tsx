@@ -3,10 +3,9 @@ import { SearchBar } from '@/components/SearchBar';
 import { Directory, Paths } from 'expo-file-system';
 import { RelativePathString, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, useRef } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity, Alert, TextInput, Animated, PanResponder, Modal } from 'react-native';
+import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity, Alert, TextInput, Animated, Modal } from 'react-native';
 import { File} from 'expo-file-system';
 import { getPhotosFromCache, PhotoItem,  savePhotosToCache, clearFolderCache } from '@/utils/photoCache';
-import { Edit2, Trash2, Check, X } from 'lucide-react-native';
 
 
 interface GlobalPhotoItem extends PhotoItem {
@@ -17,7 +16,6 @@ export default function GalleryScreen() {
   const [folders, setFolders] = useState<string[]>([]);
   const [allPhotos, setAllPhotos] = useState<GlobalPhotoItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
 
@@ -195,12 +193,6 @@ export default function GalleryScreen() {
       loadData();
     }, [])
   );
-
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadData();
-  };
 
 
   // Hàm mở modal đổi tên

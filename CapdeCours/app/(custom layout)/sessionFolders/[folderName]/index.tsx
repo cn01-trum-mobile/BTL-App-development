@@ -58,17 +58,6 @@ export default function SessionFolderScreen() {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      const refreshData = async () => {
-        if (folderName) {
-          await clearFolderCache(folderName);
-          loadAndGroupPhotos(true); // force reload
-        }
-      };
-      refreshData();
-    }, [folderName])
-  );
 
   const loadAndGroupPhotos = useCallback(async (forceReload = false) => {
     try {
@@ -137,14 +126,13 @@ export default function SessionFolderScreen() {
 
       // 6. Tạo mảng hiển thị
       const result: SessionGroup[] = sortedDatesAsc.map((dateKey, index) => {
-        const sessionNumber = index + 1;
-        let dateDisplay = dateKey;
-        try {
-          const dateObj = new Date(dateKey);
-          if (!isNaN(dateObj.getTime())) {
-            dateDisplay = format(dateObj, 'dd/MM/yyyy');
-          }
-        } catch {}
+        // let dateDisplay = dateKey;
+        // try {
+        //   const dateObj = new Date(dateKey);
+        //   if (!isNaN(dateObj.getTime())) {
+        //     dateDisplay = format(dateObj, 'dd/MM/yyyy');
+        //   }
+        // } catch {}
 
         // Sort ảnh trong session (Mới nhất lên đầu)
         groups[dateKey].sort((a, b) => b.timestamp - a.timestamp);
@@ -181,6 +169,18 @@ export default function SessionFolderScreen() {
         loadAndGroupPhotos(true);
     });
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      const refreshData = async () => {
+        if (folderName) {
+          await clearFolderCache(folderName);
+          loadAndGroupPhotos(true); // force reload
+        }
+      };
+      refreshData();
+    }, [folderName, loadAndGroupPhotos])
+  );
 
   const filteredSessions = sessionGroups.map((group) => {
     const query = searchQuery.toLowerCase();

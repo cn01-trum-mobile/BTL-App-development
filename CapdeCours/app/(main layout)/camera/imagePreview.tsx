@@ -1,5 +1,5 @@
 import { useBottomAction } from '@/context/NavActionContext';
-import { useLocalSearchParams, router, usePathname } from 'expo-router';
+import { useLocalSearchParams, router} from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -28,8 +28,6 @@ import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
 // ---------------------------------
 
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
-import { getData } from '@/utils/asyncStorage';
-import * as FileSystem from 'expo-file-system'; 
 import { PhotoItem, addPhotoToCache } from '@/utils/photoCache';
 
 

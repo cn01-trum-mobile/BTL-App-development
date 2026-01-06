@@ -1,19 +1,27 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert} from 'react-native';
+import { 
+  View, 
+  Text, 
+  Image, 
+  TouchableOpacity, 
+  TextInput, 
+  Keyboard, 
+  ActivityIndicator, 
+  Alert,
+  Dimensions
+} from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gorhom/bottom-sheet';
-import { Trash2, Edit, Check, Plus, ChevronLeft, X, Layers, Pencil } from 'lucide-react-native';
+import { Trash2, Edit, Check, Plus, ChevronLeft, X } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
 import FolderCard from '@/components/Folder';
-import { clearFolderCache, updateCacheAfterMove,  getPhotosFromCache, savePhotosToCache } from '@/utils/photoCache';
+import { clearFolderCache, updateCacheAfterMove, getPhotosFromCache, savePhotosToCache } from '@/utils/photoCache';
 import Swiper from 'react-native-swiper';
-import { Dimensions } from 'react-native';
 
-const { width, height } = Dimensions.get('window');
-
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 // --- INTERFACES ---
 interface EditableFieldProps {
@@ -132,7 +140,6 @@ export default function DetailView() {
   const [viewMode, setViewMode] = useState<'details' | 'folder_selection' | 'session_selection'>('details');
   const [photos, setPhotos] = useState<string[]>([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [loadingMetadata, setLoadingMetadata] = useState(false);
 
   // Thêm useEffect này sau snapPoints
   useEffect(() => {
@@ -233,7 +240,7 @@ export default function DetailView() {
     }
   };
 
-  const loadAllPhotosInFolder = async () => {
+  const loadAllPhotosInFolder = useCallback(async () => {
     try {
       if (photos.length === 0) {
         setLoading(true);
@@ -299,13 +306,13 @@ export default function DetailView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [data.folder, data.uri, photos.length]);
 
   useEffect(() => {
     if (data.folder && data.uri) {
       loadAllPhotosInFolder();
     }
-  }, [data.folder, data.uri]);
+  }, [data.folder, data.uri, loadAllPhotosInFolder]);
 
 
   // --- LOGIC 2: LOAD SESSIONS CỦA MỘT FOLDER ---
@@ -530,11 +537,11 @@ export default function DetailView() {
       'Do you want to delete this image? This action cannot be undone.',
       [
         {
-          text: 'Hủy',
+          text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Xóa',
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -569,7 +576,7 @@ export default function DetailView() {
               
               clearFolderCache(data.folder);
             } catch (error) {
-              console.error('Lỗi xóa file:', error);
+              console.error('Error deleting file:', error);
               Alert.alert('Error', 'Could not delete the image.');
               setLoading(false);
             }
@@ -593,7 +600,7 @@ export default function DetailView() {
 
   const loadPhotoMetadata = async (photoUri: string) => {
     try {
-      setLoadingMetadata(true); 
+      setLoading(true);
       
       const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
       const jsonFile = new File(jsonPath);
@@ -623,28 +630,13 @@ export default function DetailView() {
     } catch (error) {
       console.error('Error loading photo metadata:', error);
     } finally {
-      setLoadingMetadata(false);
+      setLoading(false);
     }
   };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View className="flex-1 bg-gray-100">
-
-        
-        {/* <View className="h-full relative">
-          <Image source={{ uri: data.uri }} className="w-full h-full" resizeMode="cover" />
-          
-          <TouchableOpacity onPress={() => router.back()} className="absolute top-12 left-4 p-2 bg-black/20 rounded-full">
-            <Text className="text-white text-xl font-bold">←</Text>
-          </TouchableOpacity>
-
-          
-          <TouchableOpacity onPress={handleDelete} className="absolute top-12 right-4 p-2 bg-black/20 rounded-full">
-            <Trash2 size={22} color="white" />
-          </TouchableOpacity>
-        </View> */}
-
         <View className="h-full relative">
           {/* Thay Image bằng Swiper */}
           {photos.length > 0 ? (
@@ -687,7 +679,7 @@ export default function DetailView() {
             <Text className="text-white text-xl font-bold">←</Text>
           </TouchableOpacity>
 
-          {/* Delete Button - chỉ hiển thị khi không có Swiper hoặc ở ảnh đầu */}
+          {/* Delete Button */}
           <TouchableOpacity 
             onPress={handleDelete} 
             className="absolute top-12 right-4 p-2 bg-black/50 rounded-full"
@@ -705,9 +697,6 @@ export default function DetailView() {
           )}
         </View>
 
-
-
-
         {showSuccessPopup && (
           <View className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 pointer-events-none">
             <View className="bg-[#8B4513] px-6 py-4 rounded-2xl items-center shadow-lg mx-4">
@@ -715,7 +704,7 @@ export default function DetailView() {
                 <Check size={24} color="white" />
               </View>
               <Text className="text-white text-center font-bold">Stored at folder</Text>
-              <Text className="text-white text-center font-bold">"{data.session}"</Text>
+              <Text className="text-white text-center font-bold">&quot;{data.session}&quot;</Text>
             </View>
           </View>
         )}
