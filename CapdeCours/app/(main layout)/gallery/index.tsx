@@ -1,10 +1,9 @@
 import FolderCard from '@/components/Folder';
 import { SearchBar } from '@/components/SearchBar';
-import { Directory, Paths } from 'expo-file-system';
+import { Directory, Paths, File } from 'expo-file-system';
 import { RelativePathString, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, useRef } from 'react';
 import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity, Alert, TextInput, Animated, Modal } from 'react-native';
-import { File} from 'expo-file-system';
 import { getPhotosFromCache, PhotoItem,  savePhotosToCache, clearFolderCache } from '@/utils/photoCache';
 
 
@@ -121,7 +120,7 @@ export default function GalleryScreen() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -137,7 +136,6 @@ export default function GalleryScreen() {
       const folderNames = contents
         .filter(i => i instanceof Directory)
         .map(d => d.name);
-
 
       const validFolders: string[] = [];
       const allPhotos: GlobalPhotoItem[] = [];
@@ -185,13 +183,13 @@ export default function GalleryScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Dependencies rỗng vì hàm này không phụ thuộc vào state/props nào
 
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+    }, [loadData]) // Bây giờ có thể thêm loadData vào đây
   );
 
 
@@ -395,7 +393,7 @@ export default function GalleryScreen() {
           <View className="bg-[#fff8e3] rounded-2xl p-6 w-80">
             <Text className="text-xl font-bold text-primary mb-2">Delete Folder</Text>
             <Text className="text-gray-600 mb-6">
-              Are you sure you want to delete "{folderToDelete}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{folderToDelete}&quot;? This action cannot be undone.
             </Text>
             
             <View className="flex-row justify-end gap-3">

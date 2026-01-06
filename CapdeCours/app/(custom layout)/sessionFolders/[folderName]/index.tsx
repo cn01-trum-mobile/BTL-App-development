@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
-import { useLocalSearchParams, router, RelativePathString } from 'expo-router';
+import { useLocalSearchParams, router, RelativePathString, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronDown } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { SearchBar } from '@/components/SearchBar';
 import { Directory, File, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
 import { getPhotosFromCache, savePhotosToCache, PhotoItem, clearFolderCache } from '@/utils/photoCache'; 
-import { useFocusEffect } from 'expo-router';
+//import { useFocusEffect } from 'expo-router';
 
 interface SessionGroup {
   id: string; 
@@ -54,6 +54,7 @@ export default function SessionFolderScreen() {
       const content = await jsonFile.text();
       return JSON.parse(content);
     } catch (e) {
+      console.error('Error reading metadata from', jsonFile.uri, e);
       return null;
     }
   };
@@ -157,11 +158,11 @@ export default function SessionFolderScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [folderName]);
+  }, [folderName, searchQuery]);
 
   useEffect(() => {
     loadAndGroupPhotos();
-  }, [folderName]);
+  }, [folderName, loadAndGroupPhotos]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -209,7 +210,7 @@ export default function SessionFolderScreen() {
     if (searchQuery) {
         setExpandedSession(filteredSessions.map(s => s.id));
     }
-  }, [searchQuery]);
+  }, [searchQuery, filteredSessions]);
 
   const categoryName = folderName?.split('_').join(' ') || '';
 
