@@ -6,11 +6,15 @@ module.exports = {
     extend: {
       colors: {
         primary: 'rgba(66,22,13,0.75)',
+        orange: '#AC3C00',
       },
       fontFamily: {
         sunshiney: ['sunshiney'],
         sen: ['sen'],
         poppins: ['poppins'],
+        'poppins-medium': ['Poppins-Medium'],
+        'poppins-semibold': ['Poppins-SemiBold'],
+        'poppins-bold': ['Poppins-Bold'],
       },
     },
   },

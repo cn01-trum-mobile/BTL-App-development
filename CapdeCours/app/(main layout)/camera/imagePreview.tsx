@@ -17,7 +17,16 @@ import {
 import { File, Paths, Directory } from 'expo-file-system';
 import { BookOpen, BookText, Check, Download, X } from 'lucide-react-native';
 import { Alert } from '@/components/Alert';
-import * as Calendar from 'expo-calendar';
+
+/* --- OLD CODE: Không dùng trực tiếp Calendar và AsyncStorage ở đây nữa --- */
+// import * as Calendar from 'expo-calendar';
+// import { getData } from '@/utils/asyncStorage';
+/* ------------------------------------------------------------------------ */
+
+// --- NEW CODE: Import Hook mới ---
+import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
+// ---------------------------------
+
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import { getData } from '@/utils/asyncStorage';
 import * as FileSystem from 'expo-file-system'; 
@@ -31,8 +40,15 @@ export default function ImagePreviewScreen() {
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState('');
   const sideWay = ['1', '3', '2', '4'];
-  const [events, setEvents] = useState<Calendar.Event[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+
+  /* --- OLD CODE: State cũ --- */
+  // const [events, setEvents] = useState<Calendar.Event[]>([]);
+  // const [isLoading, setIsLoading] = useState(true);
+  /* -------------------------- */
+
+  // --- NEW CODE: Sử dụng Hook (đổi tên biến loading -> isLoading để khớp logic dưới) ---
+  const { events, loading: isLoading, loadEvents } = useUnifiedCalendar();
+  // ------------------------------------------------------------------------------------
 
   const sanitizeFolderName = useCallback((name: string) => {
     return name.trim();
@@ -44,6 +60,7 @@ export default function ImagePreviewScreen() {
     const timestamp = now.getTime(); // Lấy timestamp (ms) để đảm bảo duy nhất
 
     // 1. XỬ LÝ FOLDER (Tên môn)
+    // Logic này vẫn hoạt động tốt vì UnifiedEvent cũng có startDate/endDate/title giống Calendar.Event
     const currentEvent = events.find((event) => {
       const start = new Date(event.startDate);
       const end = new Date(event.endDate);
@@ -123,27 +140,36 @@ export default function ImagePreviewScreen() {
     }
   }, [setAction, uri, events, note, sanitizeFolderName]);
 
-  // Fetch calendar
-  const fetchCalendar = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const storedIds = await getData('USER_CALENDAR_IDS');
-      if (!storedIds) {
-        return;
-      }
-      const calendarIds = JSON.parse(storedIds);
-      const date = new Date();
-      const startDate = startOfDay(date);
-      const endDate = endOfDay(date);
-      const fetchedEvents = await Calendar.getEventsAsync(calendarIds, startDate, endDate);
-      fetchedEvents.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-      setEvents(fetchedEvents);
-    } catch (error) {
-      console.error('Lỗi lấy lịch:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  /* --- OLD CODE: Hàm fetchCalendar thủ công --- */
+  // const fetchCalendar = useCallback(async () => {
+  //   setIsLoading(true);
+  //   try {
+  //     const storedIds = await getData('USER_CALENDAR_IDS');
+  //     if (!storedIds) {
+  //       return;
+  //     }
+  //     const calendarIds = JSON.parse(storedIds);
+  //     const date = new Date();
+  //     const startDate = startOfDay(date);
+  //     const endDate = endOfDay(date);
+  //     const fetchedEvents = await Calendar.getEventsAsync(calendarIds, startDate, endDate);
+  //     fetchedEvents.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  //     setEvents(fetchedEvents);
+  //   } catch (error) {
+  //     console.error('Lỗi lấy lịch:', error);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // }, []);
+  /* ------------------------------------------- */
+
+  // --- NEW CODE: UseEffect gọi Hook loadEvents ---
+  useEffect(() => {
+    // Tự động load lịch của ngày hiện tại khi component được mount
+    const now = new Date();
+    loadEvents(startOfDay(now), endOfDay(now));
+  }, [loadEvents]);
+  // -----------------------------------------------
 
   useEffect(() => {
     if (isLoading) {
@@ -159,38 +185,19 @@ export default function ImagePreviewScreen() {
       });
     }
   }, [isLoading, savePhoto, setAction]);
-  // const scale = useSharedValue(1);
-  // const focalX = useSharedValue(0);
-  // const focalY = useSharedValue(0);
-  // const translateX = useSharedValue(0);
-  // const translateY = useSharedValue(0);
 
-  // const pinch = Gesture.Pinch().onUpdate((e) => {
-  //   scale.value = e.scale;
-  //   focalX.value = e.focalX;
-  //   focalY.value = e.focalY;
-  // });
-  // .onEnd(() => {
-  //   scale.value = withTiming(1, { duration: 300 });
-  // });
+  /* --- OLD CODE: useEffect cũ gọi fetchCalendar --- */
+  // useEffect(() => {
+  //   fetchCalendar();
+  //   return resetAction;
+  // }, [fetchCalendar, resetAction]);
+  /* ------------------------------------------------ */
 
-  // const pan = Gesture.Pan().onChange((e) => {
-  //   translateX.value = e.translationX;
-  //   translateY.value = e.translationY;
-  // });
-  // .onEnd(() => {
-  //   translateX.value = withTiming(0, { duration: 300 });
-  //   translateY.value = withTiming(0, { duration: 300 });
-  // });
-
-  // const animatedStyle = useAnimatedStyle(() => ({
-  //   transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { scale: scale.value }],
-  // }));
-
+  // --- NEW CODE: useEffect mới để resetAction ---
   useEffect(() => {
-    fetchCalendar();
     return resetAction;
-  }, [fetchCalendar, resetAction]);
+  }, [resetAction]);
+  // ----------------------------------------------
 
   return (
     <TouchableWithoutFeedback
