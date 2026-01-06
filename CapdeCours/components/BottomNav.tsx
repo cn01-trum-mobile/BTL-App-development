@@ -47,7 +47,7 @@ export default function BottomNav() {
         {/* Schedule */}
         <TouchableOpacity
           onPress={() => {
-            router.replace('/onboarding');
+            router.replace('/schedule');
           }}
           activeOpacity={0.8}
           className="flex-1 items-center gap-1.5"

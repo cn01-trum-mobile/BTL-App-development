@@ -66,6 +66,10 @@ export default Sentry.wrap(function RootLayout() {
     sunshiney: require('@/assets/fonts/Sunshiney-Regular.ttf'),
     sen: require('@/assets/fonts/Sen-VariableFont_wght.ttf'),
     poppins: require('@/assets/fonts/poppins.regular.ttf'),
+    'Poppins-Regular': require('@/assets/fonts/static/Poppins-Regular.ttf'),
+    'Poppins-Medium': require('@/assets/fonts/static/Poppins-Medium.ttf'),
+    'Poppins-SemiBold': require('@/assets/fonts/static/Poppins-SemiBold.ttf'),
+    'Poppins-Bold': require('@/assets/fonts/static/Poppins-Bold.ttf'),
   });
   if (!fontsLoaded) {
     return <View></View>;
