@@ -228,12 +228,16 @@ export default function GalleryScreen() {
         return;
       }
 
+      // 1. Move folder (đổi tên folder vật lý)
       await oldFolder.move(newFolder);
 
+      // 2. Đọc tất cả file JSON trong folder và cập nhật metadata
       const files = newFolder.list();
       const jsonFiles = files.filter((f): f is File => 
         f instanceof File && f.name.toLowerCase().endsWith('.json')
       );
+
+      console.log(`Updating metadata for ${jsonFiles.length} files...`);
 
       await Promise.all(
         jsonFiles.map(async (jsonFile) => {
@@ -241,28 +245,49 @@ export default function GalleryScreen() {
             const content = await jsonFile.text();
             const metadata = JSON.parse(content);
             
+            // Cập nhật tên folder trong metadata
             metadata.folder = newFolderName.trim();
-            metadata.subject = newFolderName.trim();
+            
+            // Nếu subject giống với folder cũ, cập nhật luôn
+            if (metadata.subject === selectedFolder) {
+              metadata.subject = newFolderName.trim();
+            }
             
             await jsonFile.write(JSON.stringify(metadata, null, 2));
+            console.log(`Updated: ${jsonFile.name}`);
           } catch (e) {
             console.error(`Error updating ${jsonFile.name}:`, e);
           }
         })
       );
 
+      // 3. Xoá cache của cả folder cũ và mới
       clearFolderCache(selectedFolder);
       clearFolderCache(newFolderName.trim());
 
+      // 4. Rebuild cache cho folder mới
+      const newPhotos = await rebuildCacheForFolder(newFolderName.trim());
+      console.log(`Rebuilt cache: ${newPhotos.length} photos`);
+
+      // 5. Cập nhật UI state
       setFolders(prev => prev.map(f => f === selectedFolder ? newFolderName.trim() : f));
       
-      Alert.alert('Success', 'Folder renamed successfully.');
+      // 6. Cập nhật allPhotos state (đổi folderName trong các photo)
+      setAllPhotos(prev => 
+        prev.map(photo => 
+          photo.folderName === selectedFolder 
+            ? { ...photo, folderName: newFolderName.trim() } 
+            : photo
+        )
+      );
+
+      Alert.alert('Success', `Folder renamed to "${newFolderName.trim()}". Updated ${jsonFiles.length} photos.`);
     } catch (error) {
       console.error('Error renaming folder:', error);
       Alert.alert('Error', 'Failed to rename folder.');
     } finally {
       setRenameModalVisible(false);
-      loadData(); // Refresh
+      loadData(); // Có thể gọi để refresh toàn bộ
     }
   };
 

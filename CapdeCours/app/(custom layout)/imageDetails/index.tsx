@@ -485,19 +485,18 @@ export default function DetailView() {
     try {
       // Kiểm tra xem có thay đổi gì không
       if (targetFolder === data.folder && targetSession === data.session) {
-      setViewMode('details');
-      requestAnimationFrame(() => {
-        bottomSheetRef.current?.snapToIndex(3);
-      });
-      
-      // Hiển thị thông báo
-      Alert.alert(
+        setViewMode('details');
+        requestAnimationFrame(() => {
+          bottomSheetRef.current?.snapToIndex(3);
+        });
+
+        Alert.alert(
         'No Change',
         'The image is already in the selected folder and session.',
         [{ text: 'OK' }]
       );
-      return;
-    }
+        return;
+      }
 
       setLoading(true);
 
@@ -719,11 +718,15 @@ export default function DetailView() {
               loadMinimal={false}
               loadMinimalSize={1}
               onIndexChanged={(index) => {
-                setCurrentPhotoIndex(index);
-                const newUri = photos[index];
-                
-                if (newUri !== data.uri) {
-                  loadPhotoMetadata(newUri);
+                // Kiểm tra index hợp lệ
+                if (index >= 0 && index < photos.length) {
+                  setCurrentPhotoIndex(index);
+                  const newUri = photos[index];
+                  
+                  // Kiểm tra newUri hợp lệ và khác với uri hiện tại
+                  if (newUri && newUri !== data.uri) {
+                    loadPhotoMetadata(newUri);
+                  }
                 }
               }}
               // Thêm các props quan trọng để canh chỉnh
