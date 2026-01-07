@@ -2,64 +2,44 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { CalendarPlus } from 'lucide-react-native';
 import { addDays, format, isSameDay, startOfWeek, endOfDay, startOfDay, differenceInMinutes } from 'date-fns';
-import * as Calendar from 'expo-calendar';
-import { useFocusEffect } from '@react-navigation/native'; // Hoặc 'expo-router' nếu bạn dùng expo-router
-import { getData } from '@/utils/asyncStorage';
+import { useFocusEffect } from '@react-navigation/native'; // Hoặc 'expo-router'
+
+// --- NEW CODE: Import Hook mới ---
+import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
+// ---------------------------------
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [events, setEvents] = useState<Calendar.Event[]>([]);
-  const [loading, setLoading] = useState(false);
 
-  // Tính toán tuần hiển thị dựa trên ngày đang chọn (để khi bấm ngày khác nó không bị nhảy tuần lung tung)
+  // --- NEW CODE: Thay thế state cũ bằng Hook ---
+  // Hook tự quản lý loading và events rồi, không cần useState thủ công nữa
+  const { events, loading, loadEvents } = useUnifiedCalendar();
+  // ---------------------------------------------
+
+  // Tính toán tuần hiển thị
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Hàm load sự kiện
-  const fetchEvents = async (date: Date) => {
-    setLoading(true);
-    try {
-      // 1. Lấy danh sách lịch đã chọn từ bộ nhớ
-      const storedIds = await getData('USER_CALENDAR_IDS');
-      if (!storedIds) {
-        // Chưa chọn lịch -> Không làm gì hoặc báo user
-        setLoading(false);
-        return;
-      }
-      const calendarIds = JSON.parse(storedIds);
-
-      // 2. Xác định thời gian bắt đầu và kết thúc của NGÀY ĐANG CHỌN
-      const startDate = startOfDay(date);
-      const endDate = endOfDay(date);
-
-      // 3. Gọi API lấy sự kiện
-      const fetchedEvents = await Calendar.getEventsAsync(calendarIds, startDate, endDate);
-
-      // 4. Sắp xếp theo giờ tăng dần
-      fetchedEvents.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-
-      setEvents(fetchedEvents);
-    } catch (error) {
-      console.error('Lỗi lấy lịch:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Tự động load lại khi mở màn hình hoặc đổi ngày
+  // --- NEW CODE: Logic load lại dữ liệu ---
   useFocusEffect(
     useCallback(() => {
-      fetchEvents(selectedDate);
-    }, [selectedDate])
+      // Hook cần biết load từ ngày nào đến ngày nào
+      // Ở Home bạn đang xem theo NGÀY, nên start = đầu ngày, end = cuối ngày
+      const start = startOfDay(selectedDate);
+      const end = endOfDay(selectedDate);
+
+      loadEvents(start, end);
+    }, [selectedDate, loadEvents])
   );
+  // ----------------------------------------
 
   return (
-    <ScrollView className="flex-1 px-5 bg-[#FFF8E3] pt-10">
+    <ScrollView className="flex-1 px-5 bg-[#FFF8E3] pt-10" showsVerticalScrollIndicator={false}>
       {/* Welcome + Calendar Header */}
       <View className="mb-6">
         <View className="flex-row items-center justify-between mb-4">
           <View>
-            <Text className="text-xl font-sen font-bold text-[#3E2C22]">Welcome back!</Text>
+            <Text className="text-2xl font-poppins-bold text-orange">Welcome back!</Text>
             <Text className="text-sm font-sen text-gray-500">{format(selectedDate, 'MMMM yyyy')}</Text>
           </View>
           <TouchableOpacity
@@ -102,14 +82,16 @@ export default function Home() {
           <View className="relative">
             {/* Render List Events */}
             {events.map((item, index) => {
+              // LƯU Ý QUAN TRỌNG: UnifiedEvent trả về ISO String, nên phải new Date()
               const start = new Date(item.startDate);
               const end = new Date(item.endDate);
+
               const durationMinutes = differenceInMinutes(end, start);
               const durationText =
                 durationMinutes > 60 ? `${Math.floor(durationMinutes / 60)}h${durationMinutes % 60 > 0 ? durationMinutes % 60 : ''}` : `${durationMinutes}m`;
 
               return (
-                <View key={index} className="flex-row mb-4">
+                <View key={item.id || index} className="flex-row mb-4">
                   {/* Left Column: Time */}
                   <View className="w-14 items-end pr-3 pt-1">
                     <Text className="text-sm font-sen font-bold text-[#32343E]">{format(start, 'HH:mm')}</Text>
@@ -122,13 +104,20 @@ export default function Home() {
                     <View className="absolute left-[-1px] top-2 bottom-0 w-[2px] bg-gray-200" />
 
                     {/* Event Card */}
-                    <TouchableOpacity className="bg-primary rounded-2xl p-4 ml-2 min-h-[60px] justify-center shadow-sm" activeOpacity={0.8}>
+                    <TouchableOpacity
+                      className={`rounded-2xl p-4 ml-2 min-h-[60px] justify-center shadow-sm ${item.source === 'LOCAL' ? 'bg-[#AC3C00]' : 'bg-[#2196F3]'}`}
+                      // Mẹo nhỏ: Tôi đổi màu nền dựa vào source để bạn dễ phân biệt
+                      // Local: Màu cam chủ đạo, Native: Màu xanh dương
+                      activeOpacity={0.8}
+                    >
                       <Text className="text-white font-sen font-semibold text-sm mb-1">{item.title}</Text>
                       {item.location && (
                         <Text className="text-white/80 text-xs font-sen italic">
                           📍 {item.location} • {durationText}
                         </Text>
                       )}
+                      {/* Hiển thị thêm source để debug nếu cần */}
+                      {/* <Text className="text-[8px] text-white/50 absolute top-1 right-2">{item.source}</Text> */}
                     </TouchableOpacity>
                   </View>
                 </View>
