@@ -337,12 +337,12 @@ export default function GalleryScreen() {
   const isSearching = searchQuery.length > 0;
 
   return (
-    <View className="flex-1 px-5 pt-2">
+    <View className="flex-1 px-5 pt-2"> 
       <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Search (notes, subjects)..." 
-      />
+          placeholder="Search for your photos" 
+      /> 
 
       {/* Rename Folder Modal */}
       <Modal

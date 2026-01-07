@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { useLocalSearchParams, router, RelativePathString, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronDown } from 'lucide-react-native';
@@ -6,8 +6,7 @@ import BottomNav from '@/components/BottomNav';
 import { SearchBar } from '@/components/SearchBar';
 import { Directory, File, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
-import { getPhotosFromCache, savePhotosToCache, PhotoItem, clearFolderCache } from '@/utils/photoCache'; 
-//import { useFocusEffect } from 'expo-router';
+import { getPhotosFromCache, savePhotosToCache, PhotoItem, clearFolderCache } from '@/utils/photoCache';
 
 interface SessionGroup {
   id: string; 
@@ -40,7 +39,6 @@ const formatSessionDisplay = (sessionKey: string, index: number): string => {
   return `Session ${index + 1} - ${sessionKey}`;
 };
 
-
 export default function SessionFolderScreen() {
   const { folderName } = useLocalSearchParams<{ folderName: string }>();
   const [sessionGroups, setSessionGroups] = useState<SessionGroup[]>([]);
@@ -58,7 +56,6 @@ export default function SessionFolderScreen() {
       return null;
     }
   };
-
 
   const loadAndGroupPhotos = useCallback(async (forceReload = false) => {
     try {
@@ -122,19 +119,11 @@ export default function SessionFolderScreen() {
         groups[sessionKey].push(photo);
       });
 
-      // 5. Sắp xếp Session từ CŨ -> MỚI để đánh số
+      // Sắp xếp Session từ CŨ -> MỚI để đánh số
       const sortedDatesAsc = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
-      // 6. Tạo mảng hiển thị
+      // Tạo mảng hiển thị
       const result: SessionGroup[] = sortedDatesAsc.map((dateKey, index) => {
-        // let dateDisplay = dateKey;
-        // try {
-        //   const dateObj = new Date(dateKey);
-        //   if (!isNaN(dateObj.getTime())) {
-        //     dateDisplay = format(dateObj, 'dd/MM/yyyy');
-        //   }
-        // } catch {}
-
         // Sort ảnh trong session (Mới nhất lên đầu)
         groups[dateKey].sort((a, b) => b.timestamp - a.timestamp);
 
@@ -145,7 +134,7 @@ export default function SessionFolderScreen() {
         };
       });
 
-      // 7. Đảo ngược để Session mới nhất lên đầu UI
+      // Đảo ngược để Session mới nhất lên đầu UI
       result.reverse();
 
       setSessionGroups(result);
@@ -158,59 +147,67 @@ export default function SessionFolderScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [folderName, searchQuery]);
+  }, [folderName]); // CHỈ CÓ folderName, không có searchQuery
 
+  // Effect để load dữ liệu khi folderName thay đổi
   useEffect(() => {
     loadAndGroupPhotos();
-  }, [folderName, loadAndGroupPhotos]);
+  }, [folderName]); // CHỈ phụ thuộc vào folderName
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    clearFolderCache(folderName!).then(() => {
-        loadAndGroupPhotos(true);
-    });
-  };
+  // Effect riêng cho search - tự động mở tất cả session khi tìm kiếm
+  useEffect(() => {
+    if (searchQuery) {
+      const sessionIds = sessionGroups.map(s => s.id);
+      setExpandedSession(sessionIds);
+    } else {
+      // Khi không search, mở session đầu tiên
+      if (sessionGroups.length > 0) {
+        setExpandedSession([sessionGroups[0].id]);
+      }
+    }
+  }, [searchQuery]); // RIÊNG BIỆT với loadAndGroupPhotos
 
+  // useFocusEffect chỉ để cleanup hoặc xử lý đặc biệt
   useFocusEffect(
     useCallback(() => {
-      const refreshData = async () => {
-        if (folderName) {
-          await clearFolderCache(folderName);
-          loadAndGroupPhotos(true); // force reload
-        }
+      // Không gọi loadAndGroupPhotos ở đây để tránh trùng lặp
+      return () => {
+        // Cleanup nếu cần
       };
-      refreshData();
-    }, [folderName, loadAndGroupPhotos])
+    }, [folderName])
   );
 
-  const filteredSessions = sessionGroups.map((group) => {
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    clearFolderCache(folderName!).then(() => {
+      loadAndGroupPhotos(true);
+    });
+  }, [folderName, loadAndGroupPhotos]);
+
+
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery) return sessionGroups;
+    
     const query = searchQuery.toLowerCase();
     
+    return sessionGroups.map((group) => {
+      if (group.title.toLowerCase().includes(query)) {
+        return group;
+      }
 
-    if (group.title.toLowerCase().includes(query)) {
-        return group; 
-    }
-
-    // 2. Nếu Session không khớp, lọc từng ảnh bên trong (Tìm Note)
-    const matchingPhotos = group.photos.filter(p => {
+      const matchingPhotos = group.photos.filter(p => {
         const noteMatch = p.note?.toLowerCase().includes(query);
         const subjectMatch = p.subject?.toLowerCase().includes(query);
         return noteMatch || subjectMatch;
-    });
+      });
 
-    if (matchingPhotos.length > 0) {
+      if (matchingPhotos.length > 0) {
         return { ...group, photos: matchingPhotos };
-    }
-    
-    return null;
-  }).filter((g): g is SessionGroup => g !== null);
-
-  // Tự động mở tất cả session khi đang tìm kiếm
-  useEffect(() => {
-    if (searchQuery) {
-        setExpandedSession(filteredSessions.map(s => s.id));
-    }
-  }, [searchQuery, filteredSessions]);
+      }
+      
+      return null;
+    }).filter((g): g is SessionGroup => g !== null);
+  }, [sessionGroups, searchQuery]);
 
   const categoryName = folderName?.split('_').join(' ') || '';
 
@@ -220,88 +217,100 @@ export default function SessionFolderScreen() {
 
   return (
     <View className="flex-1 px-5 pt-2">
-      <View>
+      <View className="flex-1 px-4 pt-3">
+      
         <View className="flex-row items-center gap-4 mb-5">
           <TouchableOpacity
             onPress={() => router.replace('/gallery')}
             activeOpacity={0.8}
-            className="w-[35px] h-[35px] rounded-[11.25px] bg-[rgba(62,53,58,0.1)] flex items-center justify-center"
+            className="w-[35px] h-[35px] rounded-[8px] bg-[#F2F2F2] flex items-center justify-center"
           >
-            <ChevronLeft size={24} color="#fff" />
+            <ChevronLeft size={24} color="#35383E" />
           </TouchableOpacity>
 
           <View className="flex-1">
-            <Text className="text-sm font-sen font-bold uppercase text-[#35383E]">{categoryName}</Text>
-            <View className="w-full h-1 bg-[#8D7162]/50 rounded-full mt-1"></View>
+            <Text className="text-sm font-sen font-bold uppercase text-[#35383E] tracking-wider">{categoryName}</Text>
+            <View className="w-full h-[3px] bg-[#D2B48C] mt-1 opacity-80"></View>
           </View>
         </View>
 
-        <SearchBar 
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search note, session..." 
-        />
+        <View className="mb-2">
+          <SearchBar 
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search for your photos" 
+          />
+        </View>
         
+
+        {loading ? (
+          <ActivityIndicator size="large" color="#AC3C00" className="mt-10" />
+        ) : (
+          <ScrollView 
+              className="flex-1" 
+              showsVerticalScrollIndicator={false}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} 
+          >
+            {filteredSessions.length === 0 ? (
+              <Text className="text-center text-gray-400 mt-10 font-sen">
+                {searchQuery ? 'No matching photos found.' : 'No photos in this folder yet.'}
+              </Text>
+            ) : (
+              <View className="gap-y-3">
+                {filteredSessions.map((session) => {
+                  const isExpanded = expandedSession.includes(session.id);
+                  const bgClass = isExpanded ? 'bg-[#714E43]' : 'bg-[#FFD9B3]';
+                  const textClass = isExpanded ? 'text-white' : 'text-[#35383E]';
+
+                  return (
+                    <View key={session.id}>
+                      <TouchableOpacity
+                        onPress={() => toggleSession(session.id)}
+                        activeOpacity={0.8}
+                        className={`w-full flex-row items-center justify-between px-5 py-4 rounded-2xl ${bgClass}`}
+                      >
+                        <Text className={`font-sen font-bold text-sm uppercase ${textClass}`}>{session.title}</Text>
+                
+                        {isExpanded ? (
+                          <ChevronDown size={20} color={'#35383E'} />
+                        ) : (
+                          <ChevronLeft size={20} color={'#35383E'} />
+                        )}
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View className="flex-row flex-wrap mt-3 mb-4 pl-2">
+                          {session.photos.map((photo, index) => (
+                            <View key={`${photo.uri}-${index}`} className="w-[30%] m-[1.5%] aspect-square rounded-xl overflow-hidden">
+                              <TouchableOpacity
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                  // Chuyển hướng sang màn hình chi tiết
+                                  router.push({
+                                    pathname: '/imageDetails' as RelativePathString,
+                                    params: { uri: photo.uri },
+                                  });
+                                }}
+                              >
+                                <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            <View className="h-20" />
+          </ScrollView>
+        )}
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#AC3C00" className="mt-10" />
-      ) : (
-        <ScrollView 
-            className="flex-1" 
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} 
-        >
-          {filteredSessions.length === 0 ? (
-            <Text className="text-center text-gray-400 mt-10 font-sen">
-              {searchQuery ? 'No matching photos found.' : 'No photos in this folder yet.'}
-            </Text>
-          ) : (
-            <View className="gap-y-3">
-              {filteredSessions.map((session) => {
-                const isExpanded = expandedSession.includes(session.id);
-                const bgClass = isExpanded ? 'bg-[#714E43]' : 'bg-[#FFD9B3]';
-                const textClass = isExpanded ? 'text-white' : 'text-[#35383E]';
-
-                return (
-                  <View key={session.id}>
-                     <TouchableOpacity
-                      onPress={() => toggleSession(session.id)}
-                      activeOpacity={0.8}
-                      className={`w-full flex-row items-center justify-between px-4 py-3 rounded-[22.5px] ${bgClass}`}
-                    >
-                      <Text className={`font-sen font-bold text-sm uppercase ${textClass}`}>{session.title}</Text>
-                      {isExpanded ? <ChevronDown size={24} color={'#fff'} /> : <ChevronLeft size={24} color={'#714E43'} />}
-                    </TouchableOpacity>
-
-                    {isExpanded && (
-                      <View className="flex-row flex-wrap mt-4 mb-6">
-                        {session.photos.map((photo, index) => (
-                          <View key={index} className="w-[30%] m-[1.5%] aspect-square rounded-2xl overflow-hidden">
-                            <TouchableOpacity
-                              activeOpacity={0.8}
-                              onPress={() => {
-                                // Chuyển hướng sang màn hình chi tiết
-                                router.push({
-                                  pathname: '/imageDetails' as RelativePathString, // Trỏ tới file app/imageDetails/index.tsx
-                                  params: { uri: photo.uri }, // Truyền đường dẫn ảnh sang
-                                });
-                              }}
-                            >
-                              <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </ScrollView>
-      )}
-      <BottomNav />
+      <View className="absolute bottom-0 left-0 right-0 h-[70px]">
+         <BottomNav />
+      </View>
     </View>
   );
 }

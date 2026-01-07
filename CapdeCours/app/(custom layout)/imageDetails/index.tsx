@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert} from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gorhom/bottom-sheet';
-import { Trash2, Edit, Check, Plus, ChevronLeft, X } from 'lucide-react-native';
+import { Trash2, Edit, Check, Plus, ChevronLeft, X, Folder } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -20,6 +20,10 @@ interface EditableFieldProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
   onEditTrigger: (field: 'name' | 'note' | 'folder') => void;
   onSave: (field: 'name' | 'note', newValue: string) => void;
+}
+
+interface PhotoItemProps {
+  uri: string;
 }
 
 // --- Component Handle ---
@@ -115,6 +119,25 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
     </View>
   );
 };
+
+
+const PhotoItem = React.memo(({ uri }: PhotoItemProps) => (
+  <View className="flex-1 justify-center bg-black">
+    <Image 
+      source={{ uri }} 
+      className="w-full h-full" 
+      resizeMode="contain"
+      fadeDuration={0} // Tắt hiệu ứng fade
+      progressiveRenderingEnabled={true}
+    />
+  </View>
+), (prevProps, nextProps) => {
+  // Chỉ re-render khi URI thay đổi
+  return prevProps.uri === nextProps.uri;
+});
+
+// Đặt tên cho component để dễ debug
+PhotoItem.displayName = 'PhotoItem';
 
 // --- MAIN SCREEN ---
 export default function DetailView() {
@@ -230,18 +253,16 @@ export default function DetailView() {
     }
   };
 
+  // 1. Sửa useEffect loadAllPhotosInFolder để không gọi setLoading không cần thiết
   const loadAllPhotosInFolder = async () => {
     try {
-      if (photos.length === 0) {
-        setLoading(true);
-      }
+      // XÓA phần này: if (photos.length === 0) { setLoading(true); }
       
       const photosDir = new Directory(Paths.document, 'photos');
       const currentFolderDir = new Directory(photosDir, data.folder);
       
       if (!currentFolderDir.exists) {
         setPhotos([data.uri]);
-        setLoading(false);
         return;
       }
       
@@ -293,16 +314,67 @@ export default function DetailView() {
     } catch (error) {
       console.error('Error loading photos:', error);
       setPhotos([data.uri]);
-    } finally {
-      setLoading(false);
     }
   };
+
+  const loadPhotoMetadata = useCallback(async (photoUri: string) => {
+    try {
+      if (!loadingMetadata) {
+        setLoadingMetadata(true);
+      }
+      
+      const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
+      const jsonFile = new File(jsonPath);
+      
+      let metadata = { name: '', folder: '', time: '', note: '', session: '' };
+      
+      if (jsonFile.exists) {
+        const content = await jsonFile.text();
+        metadata = JSON.parse(content);
+      }
+      
+      let displayTime = metadata.time;
+      try {
+        displayTime = format(new Date(metadata.time), 'h:mma EEEE, MMM do yyyy');
+      } catch {}
+      
+      setData(prev => {
+        const newData = {
+          name: metadata.name || 'Untitled',
+          folder: metadata.folder || 'Unorganized',
+          time: displayTime,
+          note: metadata.note || '',
+          uri: photoUri,
+          jsonUri: jsonPath,
+          rawTime: metadata.time,
+          session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
+        };
+        
+        if (
+          prev.name === newData.name &&
+          prev.folder === newData.folder &&
+          prev.time === newData.time &&
+          prev.note === newData.note &&
+          prev.uri === newData.uri &&
+          prev.session === newData.session
+        ) {
+          return prev;
+        }
+        return newData;
+      });
+    } catch (error) {
+      console.error('Error loading photo metadata:', error);
+    } finally {
+      setLoadingMetadata(false);
+    }
+  }, [loadingMetadata]); 
+
 
   useEffect(() => {
     if (data.folder && data.uri) {
       loadAllPhotosInFolder();
     }
-  }, [data.folder, data.uri, viewMode, loadingMetadata]);
+  }, [data.folder, data.uri, viewMode]); 
 
 
   // --- LOGIC 2: LOAD SESSIONS CỦA MỘT FOLDER ---
@@ -588,52 +660,15 @@ export default function DetailView() {
     );
   }
 
-  const loadPhotoMetadata = async (photoUri: string) => {
-    try {
-      setLoadingMetadata(true); 
-      
-      const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
-      const jsonFile = new File(jsonPath);
-      
-      let metadata = { name: '', folder: '', time: '', note: '', session: '' };
-      
-      if (jsonFile.exists) {
-        const content = await jsonFile.text();
-        metadata = JSON.parse(content);
-      }
-      
-      let displayTime = metadata.time;
-      try {
-        displayTime = format(new Date(metadata.time), 'h:mma EEEE, MMM do yyyy');
-      } catch {}
-      
-      setData({
-        name: metadata.name || 'Untitled',
-        folder: metadata.folder || 'Unorganized',
-        time: displayTime,
-        note: metadata.note || '',
-        uri: photoUri,
-        jsonUri: jsonPath,
-        rawTime: metadata.time,
-        session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
-      });
-    } catch (error) {
-      console.error('Error loading photo metadata:', error);
-    } finally {
-      setLoadingMetadata(false);
-    }
-  };
-
-  // 3. Trong JSX, bạn có thể sử dụng loadingMetadata nếu cần
-  {loadingMetadata && (
-    <View className="absolute inset-0 justify-center items-center bg-black/20">
-      <ActivityIndicator size="small" color="#6E4A3F" />
-    </View>
-  )}
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View className="flex-1 bg-gray-100">
+
+        {loadingMetadata && (
+          <View className="absolute inset-0 justify-center items-center bg-black/20">
+            <ActivityIndicator size="small" color="#6E4A3F" />
+          </View>
+        )}
 
         
         {/* <View className="h-full relative">
@@ -650,66 +685,41 @@ export default function DetailView() {
         </View> */}
 
         <View className="h-full relative">
-          {/* Thay Image bằng Swiper */}
           {photos.length > 0 ? (
             <Swiper
               index={currentPhotoIndex}
               loop={false}
               showsPagination={true}
-              paginationStyle={{ bottom: 20 }}
+              paginationStyle={{ bottom: 100 }}
               dotColor="rgba(255,255,255,0.3)"
               activeDotColor="#FFFFFF"
+              removeClippedSubviews={false}
+              loadMinimal={false}
+              loadMinimalSize={1}
               onIndexChanged={(index) => {
                 setCurrentPhotoIndex(index);
-                // Cập nhật data với ảnh hiện tại
-                if (photos[index] !== data.uri) {
-                  const newUri = photos[index];
-                  // Load metadata của ảnh mới
+                const newUri = photos[index];
+                
+                // Kiểm tra trực tiếp không dùng setTimeout để tránh delay
+                if (newUri !== data.uri) {
                   loadPhotoMetadata(newUri);
                 }
               }}
             >
               {photos.map((photoUri, index) => (
-                <View key={index} className="flex-1 justify-center bg-black">
-                  <Image 
-                    source={{ uri: photoUri }} 
-                    className="w-full h-full" 
-                    resizeMode="contain"
-                  />
-                </View>
+                // Thêm key unique với index để React biết component mới
+                <PhotoItem 
+                  key={`photo-${index}-${photoUri.split('/').pop()}`} 
+                  uri={photoUri} 
+                />
               ))}
             </Swiper>
           ) : (
-            <Image source={{ uri: data.uri }} className="w-full h-full" resizeMode="cover" />
-          )}
-          
-          {/* Back Button */}
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            className="absolute top-12 left-4 p-2 bg-black/50 rounded-full"
-          >
-            <Text className="text-white text-xl font-bold">←</Text>
-          </TouchableOpacity>
-
-          {/* Delete Button - chỉ hiển thị khi không có Swiper hoặc ở ảnh đầu */}
-          <TouchableOpacity 
-            onPress={handleDelete} 
-            className="absolute top-12 right-4 p-2 bg-black/50 rounded-full"
-          >
-            <Trash2 size={22} color="white" />
-          </TouchableOpacity>
-          
-          {/* Counter hiển thị số thứ tự ảnh */}
-          {photos.length > 1 && (
-            <View className="absolute top-20 right-4 bg-black/50 px-3 py-1 rounded-full">
-              <Text className="text-white text-sm font-semibold">
-                {currentPhotoIndex + 1}/{photos.length}
-              </Text>
+            <View className="flex-1 justify-center bg-black">
+              <PhotoItem uri={data.uri} />
             </View>
           )}
         </View>
-
-
 
 
         {showSuccessPopup && (
@@ -786,7 +796,7 @@ export default function DetailView() {
                 {/* Header */}
                 <View className="flex-row items-center gap-4 mb-5">
                   <TouchableOpacity onPress={() => setViewMode('details')} 
-                  className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
+                    className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
                   >
                     <ChevronLeft size={24} color="#35383E" />
                   </TouchableOpacity>
@@ -797,36 +807,75 @@ export default function DetailView() {
                 </View>
 
                 {isCreating && (
-                    <View className="mb-4">
-                        <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm border border-gray-200">
-                            <TextInput
-                                value={newItemName}
-                                onChangeText={setNewItemName}
-                                placeholder="FOLDER NAME..."
-                                placeholderTextColor="#9CA3AF"
-                                autoFocus
-                                onSubmitEditing={handleCreateFolder}
-                                returnKeyType="done"
-                                className="flex-1 text-[#35383E] font-bold text-base mr-2 uppercase"
-                            />
-                          <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1.5 rounded-full">
-                            <X size={18} color="#757575" strokeWidth={3} />
-                          </TouchableOpacity>
-                        </View>
+                  <View className="mb-4">
+                    <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm border border-gray-200">
+                      <TextInput
+                        value={newItemName}
+                        onChangeText={setNewItemName}
+                        placeholder="FOLDER NAME..."
+                        placeholderTextColor="#9CA3AF"
+                        autoFocus
+                        onSubmitEditing={handleCreateFolder}
+                        returnKeyType="done"
+                        className="flex-1 text-[#35383E] font-bold text-base mr-2"
+                        autoCapitalize="none" 
+                        autoCorrect={false}    
+                      />
+                      <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1.5 rounded-full">
+                        <X size={18} color="#757575" strokeWidth={3} />
+                      </TouchableOpacity>
                     </View>
+                  </View>
                 )}
 
                 <View className="gap-y-1"> 
                   {availableFolders.map((folder) => {
                     const currentFolderRaw = data.folder || '';
                     const isCurrent = currentFolderRaw.trim().toLowerCase() === folder.trim().toLowerCase();
+                    const backgroundColor = isCurrent ? '#6E4A3F' : '#FFD9B3';
+                    const textColor = isCurrent ? 'text-white' : 'text-[#35383E]';
+                    
                     return (
+                      // <TouchableOpacity
+                      //   key={folder}
+                      //   onPress={() => handleSelectFolder(folder)}
+                      //   activeOpacity={0.9}
+                      //   className="flex-row items-center gap-4 p-4 rounded-[22.5px] h-[65px] mb-3"
+                      //   style={{ backgroundColor }}
+                      // >
+                      //   {/* Icon thư mục thay vì bút chì */}
+                      //   <View 
+                      //     className={`flex items-center justify-center w-[35px] h-[35px] rounded-[11.25px] ${
+                      //       isCurrent ? 'bg-white/20' : 'bg-black/10'
+                      //     }`}
+                      //   >
+                      //     <Folder size={16} color={isCurrent ? 'white' : '#35383E'} />
+                      //   </View>
+
+                      //   {/* Title - không uppercase */}
+                      //   <Text className={`flex-1 font-sen font-bold text-sm ${textColor}`}>
+                      //     {folder}
+                      //   </Text>
+
+                      //   {/* Icon check nếu là folder hiện tại */}
+                      //   {isCurrent && (
+                      //     <View className="bg-white/20 rounded-full p-1">
+                      //       <Check size={16} color="white" />
+                      //     </View>
+                      //   )}
+                      // </TouchableOpacity>
                       <FolderCard
                         key={folder}
                         title={folder}
                         onPress={() => handleSelectFolder(folder)}
                         isActive={isCurrent}
-                        rightIcon={isCurrent ? (<View className="bg-white/20 rounded-full p-1"><Check size={16} color="white" /></View>) : undefined}
+                        icon={<Folder size={16} color={isCurrent ? 'white' : '#35383E'} />}
+                        rightIcon={isCurrent ? (
+                          <View className="bg-white/20 rounded-full p-1">
+                            <Check size={16} color="white" />
+                          </View>
+                        ) : undefined}
+                        showActions={false} 
                       />
                     );
                   })}
@@ -834,14 +883,14 @@ export default function DetailView() {
 
                 {/* Nút Floating Add Folder */}
                 {!isCreating && (
-                   <View className="mt-auto items-end pt-4">
-                      <TouchableOpacity 
-                          onPress={() => setIsCreating(true)}
-                          className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
-                      >
-                          <Plus size={28} color="#8B4513" strokeWidth={3} />
-                      </TouchableOpacity>
-                   </View>
+                  <View className="mt-auto items-end pt-4">
+                    <TouchableOpacity 
+                      onPress={() => setIsCreating(true)}
+                      className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
+                    >
+                      <Plus size={28} color="#8B4513" strokeWidth={3} />
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             )}
