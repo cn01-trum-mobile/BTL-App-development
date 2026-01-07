@@ -122,17 +122,16 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
 
 
 const PhotoItem = React.memo(({ uri }: PhotoItemProps) => (
-  <View className="flex-1 justify-center bg-black">
+  <View className="flex-1 bg-black justify-center items-center overflow-hidden">
     <Image 
       source={{ uri }} 
-      className="w-full h-full" 
-      resizeMode="contain"
-      fadeDuration={0} // Tắt hiệu ứng fade
+      className="w-full h-full"
+      resizeMode="cover"
+      fadeDuration={0}
       progressiveRenderingEnabled={true}
     />
   </View>
 ), (prevProps, nextProps) => {
-  // Chỉ re-render khi URI thay đổi
   return prevProps.uri === nextProps.uri;
 });
 
@@ -704,13 +703,16 @@ export default function DetailView() {
           </TouchableOpacity>
         </View> */}
 
-        <View className="h-full relative">
+        <View className="flex-1 bg-black">
           {photos.length > 0 ? (
             <Swiper
               index={currentPhotoIndex}
               loop={false}
               showsPagination={true}
-              paginationStyle={{ bottom: 100 }}
+              paginationStyle={{ 
+                position: 'absolute',
+                bottom: 100 
+              }}
               dotColor="rgba(255,255,255,0.3)"
               activeDotColor="#FFFFFF"
               removeClippedSubviews={false}
@@ -720,35 +722,42 @@ export default function DetailView() {
                 setCurrentPhotoIndex(index);
                 const newUri = photos[index];
                 
-                // Kiểm tra trực tiếp không dùng setTimeout để tránh delay
                 if (newUri !== data.uri) {
                   loadPhotoMetadata(newUri);
                 }
               }}
+              // Thêm các props quan trọng để canh chỉnh
+              style={{
+                flex: 1,
+                height: '100%'
+              }}
+              containerStyle={{
+                flex: 1
+              }}
             >
               {photos.map((photoUri, index) => (
-                // Thêm key unique với index để React biết component mới
-                <PhotoItem 
-                  key={`photo-${index}-${photoUri.split('/').pop()}`} 
-                  uri={photoUri} 
-                />
+                <View 
+                  key={`photo-${index}-${photoUri.split('/').pop()}`}
+                  style={{ flex: 1 }}
+                >
+                  <PhotoItem uri={photoUri} />
+                </View>
               ))}
             </Swiper>
           ) : (
-            <View className="flex-1 justify-center bg-black">
+            <View className="flex-1">
               <PhotoItem uri={data.uri} />
             </View>
           )}
 
-
           {/* Header với các button */}
-          <View className="absolute top-0 left-0 right-0 pt-12 px-4 flex-row justify-between items-center">
+          <View className="absolute top-12 left-0 right-0 px-6 flex-row justify-between items-center z-10">
             {/* Back Button */}
             <TouchableOpacity 
               onPress={() => router.back()} 
-              className="p-3 bg-black/50 rounded-full"
+              className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
             >
-              <ChevronLeft size={24} color="white" />
+              <ChevronLeft size={22} color="white" />
             </TouchableOpacity>
 
             {/* Counter hiển thị số thứ tự ảnh */}
@@ -765,13 +774,12 @@ export default function DetailView() {
             {/* Delete Button */}
             <TouchableOpacity 
               onPress={handleDelete} 
-              className="p-3 bg-black/50 rounded-full"
+              className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
             >
-              <Trash2 size={22} color="white" />
+              <Trash2 size={20} color="white" />
             </TouchableOpacity>
           </View>
         </View>
-
 
         {showSuccessPopup && (
           <View className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 pointer-events-none">
