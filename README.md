@@ -121,7 +121,7 @@ cp .env.example .env
 Hoặc tạo thủ công file `.env` với nội dung:
 
 ```env
-API_URL=https://b570db798a0f.ngrok-free.app
+API_URL=your-backend-api-url
 ```
 
 **Lưu ý:** 
