@@ -63,7 +63,7 @@ export default function Home() {
         <Animated.View className="flex-1 justify-center items-center" style={animatedStyle2}>
           <Image source={require('@/assets/images/logo.png')} />
           <Text className="font-sunshiney text-[38px] font-semibold text-[#32343E] opacity-80 text-center mb-2">CapdeCours</Text>
-          <Text className="font-sen text-[16px] text-[#AC3C00] opacity-80 text-center mb-5">Snap Fast. Save Smart. Find Easy.</Text>
+          <Text className="font-poppins-regular text-[16px] text-[#AC3C00] opacity-80 text-center mb-5">Snap Fast. Save Smart. Find Easy.</Text>
         </Animated.View>
       )}
     </View>

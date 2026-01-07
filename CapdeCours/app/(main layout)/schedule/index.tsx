@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, FlatList, Dimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { addDays, differenceInMinutes, endOfDay, format, isSameDay, startOfDay, startOfWeek } from 'date-fns';
 import { CalendarPlus } from 'lucide-react-native';
@@ -13,12 +13,30 @@ const END_HOUR = 24;
 const SLOT_HEIGHT = 60;
 const TIME_COLUMN_WIDTH = 50;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function Schedule() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [currentWeekIndex, setCurrentWeekIndex] = useState(50); // Bắt đầu ở giữa (tuần 0 = tuần hiện tại)
+  const weekListRef = useRef<FlatList>(null);
 
   const { events, loading, loadEvents } = useUnifiedCalendar();
+
+  // Tạo mảng các tuần (50 tuần trước và 50 tuần sau tuần hiện tại)
+  const weeks = useMemo(() => {
+    const today = new Date();
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const weeksArray = [];
+    for (let i = -50; i <= 50; i++) {
+      const weekStart = addDays(currentWeekStart, i * 7);
+      weeksArray.push({
+        weekStart,
+        weekDays: Array.from({ length: 7 }, (_, j) => addDays(weekStart, j)),
+      });
+    }
+    return weeksArray;
+  }, []);
 
   const visibleDates = useMemo(() => {
     return [selectedDate, addDays(selectedDate, 1), addDays(selectedDate, 2)];
@@ -36,8 +54,40 @@ export default function Schedule() {
     return visibleDates.map((day) => events.filter((e) => isSameDay(new Date(e.startDate), day)));
   }, [events, visibleDates]);
 
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  // Scroll đến đúng tuần hiện tại khi component mount
+  useEffect(() => {
+    // Đợi một chút để FlatList render xong
+    const timer = setTimeout(() => {
+      if (weekListRef.current) {
+        weekListRef.current.scrollToIndex({
+          index: currentWeekIndex,
+          animated: false,
+        });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Chỉ chạy 1 lần khi mount
+
+  // Khi scroll tuần, cập nhật selectedDate về ngày đầu tuần nếu chưa có trong tuần đó
+  const handleWeekScroll = useCallback(
+    (event: any) => {
+      const offsetX = event.nativeEvent.contentOffset.x;
+      const index = Math.round(offsetX / SCREEN_WIDTH);
+      if (index >= 0 && index < weeks.length && index !== currentWeekIndex) {
+        setCurrentWeekIndex(index);
+        const newWeek = weeks[index];
+        if (newWeek) {
+          // Nếu selectedDate không nằm trong tuần mới, chuyển sang ngày đầu tuần
+          const isDateInWeek = newWeek.weekDays.some((day) => isSameDay(day, selectedDate));
+          if (!isDateInWeek) {
+            setSelectedDate(newWeek.weekDays[0]);
+          }
+        }
+      }
+    },
+    [currentWeekIndex, weeks, selectedDate]
+  );
 
   const handleAddEvent = () => {
     router.push('/(main layout)/schedule/addEvent');
@@ -66,30 +116,61 @@ export default function Schedule() {
             <CalendarPlus size={26} color="#3E2C22" />
           </TouchableOpacity>
         </View>
-
-        <View style={styles.weekContainer}>
-          <View style={styles.weekRow}>
-            {weekDays.map((day, i) => {
-              const isSelected = isSameDay(day, selectedDate);
-              const isVisible = visibleDates.some((d) => isSameDay(d, day));
-
-              return (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => setSelectedDate(day)}
-                  style={[styles.dayItem, isSelected && styles.dayMain, !isSelected && isVisible && styles.dayRange]}
-                >
-                  <Text style={[styles.dayText, isSelected && styles.dayTextActive, !isSelected && isVisible && styles.dayTextRange]}>
-                    {format(day, 'EEE')}
-                  </Text>
-                  <Text style={[styles.dateText, isSelected && styles.dayTextActive, !isSelected && isVisible && styles.dayTextRange]}>{format(day, 'd')}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
       </View>
+      <View style={styles.weekContainer}>
+        <FlatList
+          ref={weekListRef}
+          data={weeks}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item, index) => `week-${index}`}
+          initialScrollIndex={currentWeekIndex}
+          getItemLayout={(data, index) => ({
+            length: SCREEN_WIDTH,
+            offset: SCREEN_WIDTH * index,
+            index,
+          })}
+          onMomentumScrollEnd={handleWeekScroll}
+          onScrollToIndexFailed={(info) => {
+            // Nếu scroll fail, thử lại sau một chút
+            setTimeout(() => {
+              if (weekListRef.current) {
+                weekListRef.current.scrollToIndex({
+                  index: info.index,
+                  animated: false,
+                });
+              }
+            }, 100);
+          }}
+          renderItem={({ item }) => (
+            // 1. Wrapper bao ngoài: Chiều rộng bằng đúng màn hình để paging chuẩn
+            <View style={{ width: SCREEN_WIDTH, alignItems: 'flex-start', justifyContent: 'center' }}>
+              {/* 2. Nội dung bên trong: Set chiều rộng nhỏ hơn để tạo khoảng cách 2 bên */}
+              <View style={[styles.weekRow, { width: SCREEN_WIDTH * 0.9 }]}>
+                {item.weekDays.map((day: Date, i: number) => {
+                  const isSelected = isSameDay(day, selectedDate);
+                  const isVisible = visibleDates.some((d) => isSameDay(d, day));
 
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setSelectedDate(day)}
+                      style={[styles.dayItem, isSelected && styles.dayMain, !isSelected && isVisible && styles.dayRange]}
+                    >
+                      <Text style={[styles.dayText, isSelected && styles.dayTextActive, !isSelected && isVisible && styles.dayTextRange]}>
+                        {format(day, 'EEE')}
+                      </Text>
+                      <Text style={[styles.dateText, isSelected && styles.dayTextActive, !isSelected && isVisible && styles.dayTextRange]}>
+                        {format(day, 'd')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+        />
+      </View>
       <View style={styles.gridHeader}>
         <View style={{ width: TIME_COLUMN_WIDTH }} />
 
@@ -126,27 +207,39 @@ export default function Schedule() {
                   ))}
 
                   <View style={styles.eventsLayer}>
-                    {eventsByDay[dayIndex].map((event, idx) => {
+                    {eventsByDay[dayIndex].map((event) => {
+                      // Parse ISO string - new Date() tự động convert sang local timezone
                       const start = new Date(event.startDate);
                       const end = new Date(event.endDate);
 
+                      // Lấy giờ/phút theo local timezone của thiết bị
                       const startHour = start.getHours();
                       const startMin = start.getMinutes();
+                      console.log('startHour', startHour);
+                      console.log('startMin', startMin);
 
                       if (startHour < START_HOUR) return null;
 
+                      // Tính số phút từ START_HOUR (0h) đến giờ bắt đầu event
+                      // Ví dụ: event 17:30 → (17 - 0) * 60 + 30 = 1050 phút
                       const minutesFromStart = (startHour - START_HOUR) * 60 + startMin;
+
+                      // Tính duration (phút)
                       const duration = differenceInMinutes(end, start);
 
-                      const top = (minutesFromStart / 60) * SLOT_HEIGHT;
-                      const height = (duration / 60) * SLOT_HEIGHT;
+                      // Tính top: mỗi phút = SLOT_HEIGHT / 60 pixels
+                      // Ví dụ: 1050 phút * (60px / 60 phút) = 1050px từ top
+                      const top = minutesFromStart * (SLOT_HEIGHT / 60);
 
-                      const bgColor = event.source === 'LOCAL' ? '#AC3C00' : '#2196F3';
+                      // Tính height: duration (phút) * (SLOT_HEIGHT / 60)
+                      const height = Math.max(duration * (SLOT_HEIGHT / 60), 30);
+
+                      const bgColor = event.source === 'LOCAL' ? '#AC3C00' : event.source === 'REMOTE' ? '#10B981' : '#2196F3';
 
                       return (
                         <TouchableOpacity
-                          key={idx}
-                          style={[styles.eventBlock, { top, height: Math.max(height, 30), backgroundColor: bgColor }]}
+                          key={event.id}
+                          style={[styles.eventBlock, { top, height, backgroundColor: bgColor }]}
                           activeOpacity={0.8}
                           onPress={() => handleEditEvent(event)}
                         >
@@ -173,6 +266,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFF8E3',
+    fontFamily: 'Poppins-Regular',
   },
   loadingContainer: {
     flex: 1,
@@ -188,12 +282,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: 'Poppins-Bold',
     color: '#AC3C00',
   },
   monthText: {
     fontSize: 14,
-    fontWeight: '600',
+    // fontWeight: '600',
     color: '#6B7280',
     marginTop: 2,
   },
@@ -217,17 +311,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   weekContainer: {
-    marginTop: 15,
+    marginTop: 10,
+    marginBottom: 20,
   },
   weekRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     backgroundColor: '#FFE8BB',
     borderRadius: 12,
-    padding: 6,
+    paddingHorizontal: 2,
+    paddingVertical: 6,
+    // marginHorizontal: 16, // Padding bên trong để có khoảng cách 2 bên
   },
   dayItem: {
-    flex: 1,
+    flex: 0.8,
     alignItems: 'center',
     paddingVertical: 8,
     borderRadius: 8,
@@ -294,6 +391,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   timeColumn: {
+    marginTop: -8,
     width: TIME_COLUMN_WIDTH,
     alignItems: 'center',
   },
@@ -304,7 +402,7 @@ const styles = StyleSheet.create({
   timeLabelContainer: {
     height: SLOT_HEIGHT,
     justifyContent: 'flex-start',
-    marginTop: -6,
+    // marginTop: -2,
   },
   timeText: {
     fontSize: 11,

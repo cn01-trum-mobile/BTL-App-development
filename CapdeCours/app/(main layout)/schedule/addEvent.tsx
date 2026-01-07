@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Clock } from 'lucide-react-native';
 import { createEvent, updateEvent, deleteEvent } from '@/app/services/calendarActions';
 import { UnifiedEvent } from '@/app/types/calendarTypes';
+import { syncLocalEventsWithBackend } from '@/app/services/localCalendarService';
 
 export default function AddEventScreen() {
   const router = useRouter();
@@ -55,6 +56,8 @@ export default function AddEventScreen() {
           startDate: finalStartDate,
           endDate: finalEndDate,
         });
+        // Sync ngay để cập nhật trạng thái (nếu đã login)
+        await syncLocalEventsWithBackend();
         Alert.alert('Updated', 'Event updated successfully');
       } else {
         // --- LOGIC CREATE ---
@@ -66,6 +69,8 @@ export default function AddEventScreen() {
           },
           'LOCAL'
         ); // Mặc định tạo vào Local
+        // Sync ngay để cập nhật trạng thái (nếu đã login)
+        await syncLocalEventsWithBackend();
         Alert.alert('Success', 'Event added successfully');
       }
       router.back();
@@ -84,6 +89,8 @@ export default function AddEventScreen() {
         style: 'destructive',
         onPress: async () => {
           await deleteEvent(eventToEdit);
+          // Sync ngay để cập nhật trạng thái (nếu đã login)
+          await syncLocalEventsWithBackend();
           router.back();
         },
       },
@@ -178,6 +185,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFF8E3',
+    fontFamily: 'Poppins-Regular',
   },
   header: {
     flexDirection: 'row',
@@ -191,7 +199,7 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerTitle: {
-    fontFamily: 'Pacifico-Regular', // Nếu có font custom
+    fontFamily: 'Poppins-Bold',
     fontSize: 20,
     color: '#3E2C22',
     fontWeight: 'bold',
@@ -201,14 +209,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
   },
   pageTitle: {
-    fontSize: 26,
-    fontWeight: '800', // Extra bold
+    fontFamily: 'Poppins-Bold',
+    fontSize: 24,
     color: '#AC3C00',
     marginTop: 10,
     marginBottom: 30,
     textAlign: 'center',
   },
   label: {
+    fontFamily: 'Poppins-Bold',
+
     fontSize: 16,
     fontWeight: 'bold',
     color: '#000',
@@ -221,6 +231,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     padding: 15,
+    fontFamily: 'Poppins-Regular',
+
     fontSize: 16,
     color: '#333',
   },
@@ -236,6 +248,8 @@ const styles = StyleSheet.create({
     height: 55, // Cố định chiều cao
   },
   inputText: {
+    fontFamily: 'Poppins-Regular',
+
     fontSize: 16,
     color: '#333',
   },
@@ -256,6 +270,8 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#fff',
+    fontFamily: 'Poppins-Regular',
+
     fontSize: 16,
     fontWeight: 'bold',
     textTransform: 'uppercase',
