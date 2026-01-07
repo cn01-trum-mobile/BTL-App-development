@@ -1,15 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { CalendarPlus } from 'lucide-react-native';
 import { addDays, format, isSameDay, startOfWeek, endOfDay, startOfDay, differenceInMinutes } from 'date-fns';
-import { useFocusEffect } from '@react-navigation/native'; // Hoặc 'expo-router'
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 
-// --- NEW CODE: Import Hook mới ---
 import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
-// ---------------------------------
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const router = useRouter();
 
   // --- NEW CODE: Thay thế state cũ bằng Hook ---
   // Hook tự quản lý loading và events rồi, không cần useState thủ công nữa
@@ -33,33 +33,37 @@ export default function Home() {
   );
   // ----------------------------------------
 
+  const handleAddEvent = () => {
+    router.push('/(main layout)/schedule/addEvent');
+  };
+
   return (
-    <ScrollView className="flex-1 px-5 bg-[#FFF8E3] pt-10" showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Welcome + Calendar Header */}
-      <View className="mb-6">
-        <View className="flex-row items-center justify-between mb-4">
+      <View style={styles.headerSection}>
+        <View style={styles.titleRow}>
           <View>
-            <Text className="text-2xl font-poppins-bold text-orange">Welcome back!</Text>
-            <Text className="text-sm font-sen text-gray-500">{format(selectedDate, 'MMMM yyyy')}</Text>
+            <Text style={styles.welcomeTitle}>Welcome back!</Text>
+            <Text style={styles.monthText}>{format(selectedDate, 'MMMM yyyy')}</Text>
           </View>
           <TouchableOpacity
             onPress={() => {
               /* Navigate to Settings or Calendar Select */
             }}
           >
-            <CalendarPlus size={28} color="#3E2C22" opacity={0.75} />
+            <CalendarPlus size={28} color="#3E2C22" onPress={handleAddEvent} />
           </TouchableOpacity>
         </View>
 
-        {/* Weekdays Selector */}
-        <View className="bg-[#FFE8BB] rounded-xl p-2 mb-6">
-          <View className="flex-row justify-around items-center">
+        {/* Weekdays Selector - Style giống schedule */}
+        <View style={styles.weekContainer}>
+          <View style={styles.weekRow}>
             {days.map((day, index) => {
               const isSelected = isSameDay(day, selectedDate);
               return (
-                <TouchableOpacity key={index} onPress={() => setSelectedDate(day)} className={`items-center p-3 rounded-lg ${isSelected ? 'bg-primary' : ''}`}>
-                  <Text className={`text-xs font-poppins font-bold mb-2 ${isSelected ? 'text-white' : 'text-[#3A3C6A]'}`}>{format(day, 'EEE')}</Text>
-                  <Text className={`text-xs font-poppins font-bold ${isSelected ? 'text-white' : 'text-[#8A8BB1]'}`}>{format(day, 'd')}</Text>
+                <TouchableOpacity key={index} onPress={() => setSelectedDate(day)} style={[styles.dayItem, isSelected && styles.dayMain]}>
+                  <Text style={[styles.dayText, isSelected && styles.dayTextActive]}>{format(day, 'EEE')}</Text>
+                  <Text style={[styles.dateText, isSelected && styles.dayTextActive]}>{format(day, 'd')}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -68,21 +72,18 @@ export default function Home() {
       </View>
 
       {/* Schedule Section */}
-      <View className="mb-6">
-        <Text className="text-xl font-sen font-bold text-[#3E2C22] mb-4">Schedule ({format(selectedDate, 'dd/MM')})</Text>
+      <View style={styles.scheduleSection}>
+        <Text style={styles.scheduleTitle}>Today&apos;s schedule ({format(selectedDate, 'dd/MM')})</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color="#AC3C00" />
         ) : events.length === 0 ? (
-          // Empty State
-          <View className="items-center justify-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-            <Text className="text-gray-400 font-sen">No classes scheduled for today.</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No classes scheduled for today.</Text>
           </View>
         ) : (
-          <View className="relative">
-            {/* Render List Events */}
-            {events.map((item, index) => {
-              // LƯU Ý QUAN TRỌNG: UnifiedEvent trả về ISO String, nên phải new Date()
+          <View style={styles.eventsContainer}>
+            {events.map((item) => {
               const start = new Date(item.startDate);
               const end = new Date(item.endDate);
 
@@ -90,34 +91,24 @@ export default function Home() {
               const durationText =
                 durationMinutes > 60 ? `${Math.floor(durationMinutes / 60)}h${durationMinutes % 60 > 0 ? durationMinutes % 60 : ''}` : `${durationMinutes}m`;
 
+              const bgColor = item.source === 'LOCAL' ? '#AC3C00' : item.source === 'REMOTE' ? '#71504a' : '#A44063';
+
               return (
-                <View key={item.id || index} className="flex-row mb-4">
-                  {/* Left Column: Time */}
-                  <View className="w-14 items-end pr-3 pt-1">
-                    <Text className="text-sm font-sen font-bold text-[#32343E]">{format(start, 'HH:mm')}</Text>
-                    <Text className="text-[10px] font-sen text-gray-400">{format(end, 'HH:mm')}</Text>
+                <View key={item.id} style={styles.eventRow}>
+                  <View style={styles.timeColumn}>
+                    <Text style={styles.timeText}>{format(start, 'HH:mm')}</Text>
+                    <Text style={styles.timeTextSmall}>{format(end, 'HH:mm')}</Text>
                   </View>
 
-                  {/* Right Column: Card content */}
-                  <View className="flex-1 relative">
-                    {/* Vertical Divider Line */}
-                    <View className="absolute left-[-1px] top-2 bottom-0 w-[2px] bg-gray-200" />
-
-                    {/* Event Card */}
-                    <TouchableOpacity
-                      className={`rounded-2xl p-4 ml-2 min-h-[60px] justify-center shadow-sm ${item.source === 'LOCAL' ? 'bg-[#AC3C00]' : 'bg-[#2196F3]'}`}
-                      // Mẹo nhỏ: Tôi đổi màu nền dựa vào source để bạn dễ phân biệt
-                      // Local: Màu cam chủ đạo, Native: Màu xanh dương
-                      activeOpacity={0.8}
-                    >
-                      <Text className="text-white font-sen font-semibold text-sm mb-1">{item.title}</Text>
+                  <View style={styles.eventCardContainer}>
+                    <View style={styles.dividerLine} />
+                    <TouchableOpacity style={[styles.eventCard, { backgroundColor: bgColor }]} activeOpacity={0.8}>
+                      <Text style={styles.eventTitle}>{item.title}</Text>
                       {item.location && (
-                        <Text className="text-white/80 text-xs font-sen italic">
+                        <Text style={styles.eventLocation}>
                           📍 {item.location} • {durationText}
                         </Text>
                       )}
-                      {/* Hiển thị thêm source để debug nếu cần */}
-                      {/* <Text className="text-[8px] text-white/50 absolute top-1 right-2">{item.source}</Text> */}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -128,18 +119,18 @@ export default function Home() {
       </View>
 
       {/* Bottom section (Banner) */}
-      <View className="bg-[#3E2C22] rounded-[14px] p-4 -mx-4 shadow-lg mb-10">
-        <View className="bg-[#FFE8BB] rounded-[14px] p-4 my-4 relative">
-          <Text className="text-center text-[#8D7162] font-sen font-semibold text-base mb-4">Classify unorganized images now!</Text>
-          <View className="flex-row justify-center gap-4">
+      <View style={styles.bannerContainer}>
+        <View style={styles.bannerInner}>
+          <Text style={styles.bannerText}>Classify unorganized images now!</Text>
+          <View style={styles.bannerImages}>
             <Image
               source={{ uri: 'https://api.builder.io/api/v1/image/assets/TEMP/95b04280b55e01348191c16f60da62da3283e88f?width=314' }}
-              className="w-32 h-24 rounded-lg bg-gray-300"
+              style={styles.bannerImage}
               resizeMode="cover"
             />
             <Image
               source={{ uri: 'https://api.builder.io/api/v1/image/assets/TEMP/4eb24e44fc1d974992559a05b185a1168bbb9eed?width=314' }}
-              className="w-32 h-24 rounded-lg bg-gray-300"
+              style={styles.bannerImage}
               resizeMode="cover"
             />
           </View>
@@ -148,3 +139,189 @@ export default function Home() {
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFF8E3',
+    paddingHorizontal: 20,
+  },
+  headerSection: {
+    marginBottom: 24,
+    paddingTop: 10,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  welcomeTitle: {
+    fontSize: 24,
+    fontFamily: 'Poppins-Bold',
+    color: '#AC3C00',
+  },
+  monthText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  weekContainer: {
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFE8BB',
+    borderRadius: 12,
+    paddingHorizontal: 2,
+    paddingVertical: 6,
+  },
+  dayItem: {
+    flex: 0.8,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginHorizontal: 2,
+  },
+  dayMain: {
+    backgroundColor: '#AC3C00',
+  },
+  dayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3A3C6A',
+  },
+  dateText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 2,
+    color: '#3A3C6A',
+  },
+  dayTextActive: {
+    color: '#FFF',
+  },
+  scheduleSection: {
+    marginBottom: 24,
+  },
+  scheduleTitle: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#E5E7EB',
+  },
+  emptyText: {
+    color: '#9CA3AF',
+    fontFamily: 'Poppins-Regular',
+  },
+  eventsContainer: {
+    position: 'relative',
+  },
+  eventRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  timeColumn: {
+    width: 56,
+    alignItems: 'flex-end',
+    paddingRight: 12,
+    paddingTop: 4,
+  },
+  timeText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    fontWeight: 'bold',
+    color: '#32343E',
+  },
+  timeTextSmall: {
+    fontSize: 10,
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+  },
+  eventCardContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  dividerLine: {
+    position: 'absolute',
+    left: -1,
+    top: 8,
+    bottom: 0,
+    width: 2,
+    backgroundColor: '#E5E7EB',
+  },
+  eventCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginLeft: 8,
+    minHeight: 60,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  eventTitle: {
+    color: '#FFF',
+    fontFamily: 'Poppins-Regular',
+    fontWeight: '600',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  eventLocation: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    fontStyle: 'italic',
+  },
+  bannerContainer: {
+    backgroundColor: '#3E2C22',
+    borderRadius: 14,
+    padding: 8,
+    marginHorizontal: -20,
+    marginBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  bannerInner: {
+    backgroundColor: '#FFE8BB',
+    borderRadius: 14,
+    padding: 16,
+    marginVertical: 16,
+  },
+  bannerText: {
+    textAlign: 'center',
+    color: '#8D7162',
+    fontFamily: 'Poppins-Regular',
+    fontWeight: '600',
+    fontSize: 15,
+    marginBottom: 16,
+  },
+  bannerImages: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  bannerImage: {
+    width: 128,
+    height: 96,
+    borderRadius: 8,
+    backgroundColor: '#D1D5DB',
+  },
+});

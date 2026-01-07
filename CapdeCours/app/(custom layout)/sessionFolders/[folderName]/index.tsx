@@ -30,8 +30,8 @@ export default function SessionFolderScreen() {
       const content = await jsonFile.text();
       return JSON.parse(content);
     } catch (e) {
-      return null;
       console.log(e);
+      return null;
     }
   };
 
@@ -125,7 +125,7 @@ export default function SessionFolderScreen() {
 
   useEffect(() => {
     loadAndGroupPhotos();
-  }, [folderName]);
+  }, [loadAndGroupPhotos]);
 
   const categoryName = folderName?.split('_').join(' ') || '';
 
