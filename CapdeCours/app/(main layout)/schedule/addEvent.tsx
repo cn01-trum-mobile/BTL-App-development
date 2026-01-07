@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
     fontSize: 20,
     color: '#3E2C22',
-    fontWeight: 'bold',
+    // fontWeight: 'bold',
   },
   content: {
     flex: 1,
@@ -213,14 +213,14 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#AC3C00',
     marginTop: 10,
-    marginBottom: 30,
+    // marginBottom: 10,
     textAlign: 'center',
   },
   label: {
     fontFamily: 'Poppins-Bold',
 
     fontSize: 16,
-    fontWeight: 'bold',
+    // fontWeight: 'bold',
     color: '#000',
     marginBottom: 8,
     marginTop: 15,
@@ -271,7 +271,6 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#fff',
     fontFamily: 'Poppins-Regular',
-
     fontSize: 16,
     fontWeight: 'bold',
     textTransform: 'uppercase',

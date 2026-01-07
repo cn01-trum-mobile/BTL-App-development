@@ -1,75 +1,41 @@
-import React, { useCallback, useState, useMemo, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StyleSheet, FlatList, Dimensions } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { CalendarPlus } from 'lucide-react-native';
 import { addDays, format, isSameDay, startOfWeek, endOfDay, startOfDay, differenceInMinutes } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 
 import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [currentWeekIndex, setCurrentWeekIndex] = useState(50);
-  const weekListRef = useRef<FlatList>(null);
+  const router = useRouter();
 
+  // --- NEW CODE: Thay thế state cũ bằng Hook ---
+  // Hook tự quản lý loading và events rồi, không cần useState thủ công nữa
   const { events, loading, loadEvents } = useUnifiedCalendar();
+  // ---------------------------------------------
 
-  // Tạo mảng các tuần (50 tuần trước và 50 tuần sau tuần hiện tại)
-  const weeks = useMemo(() => {
-    const today = new Date();
-    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-    const weeksArray = [];
-    for (let i = -50; i <= 50; i++) {
-      const weekStart = addDays(currentWeekStart, i * 7);
-      weeksArray.push({
-        weekStart,
-        weekDays: Array.from({ length: 7 }, (_, j) => addDays(weekStart, j)),
-      });
-    }
-    return weeksArray;
-  }, []);
+  // Tính toán tuần hiển thị
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  // --- NEW CODE: Logic load lại dữ liệu ---
   useFocusEffect(
     useCallback(() => {
+      // Hook cần biết load từ ngày nào đến ngày nào
+      // Ở Home bạn đang xem theo NGÀY, nên start = đầu ngày, end = cuối ngày
       const start = startOfDay(selectedDate);
       const end = endOfDay(selectedDate);
+
       loadEvents(start, end);
     }, [selectedDate, loadEvents])
   );
+  // ----------------------------------------
 
-  // Scroll đến đúng tuần hiện tại khi component mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (weekListRef.current) {
-        weekListRef.current.scrollToIndex({
-          index: currentWeekIndex,
-          animated: false,
-        });
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Khi scroll tuần, cập nhật selectedDate
-  const handleWeekScroll = useCallback(
-    (event: any) => {
-      const offsetX = event.nativeEvent.contentOffset.x;
-      const index = Math.round(offsetX / SCREEN_WIDTH);
-      if (index >= 0 && index < weeks.length && index !== currentWeekIndex) {
-        setCurrentWeekIndex(index);
-        const newWeek = weeks[index];
-        if (newWeek) {
-          const isDateInWeek = newWeek.weekDays.some((day) => isSameDay(day, selectedDate));
-          if (!isDateInWeek) {
-            setSelectedDate(newWeek.weekDays[0]);
-          }
-        }
-      }
-    },
-    [currentWeekIndex, weeks, selectedDate]
-  );
+  const handleAddEvent = () => {
+    router.push('/(main layout)/schedule/addEvent');
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -85,57 +51,29 @@ export default function Home() {
               /* Navigate to Settings or Calendar Select */
             }}
           >
-            <CalendarPlus size={28} color="#3E2C22" />
+            <CalendarPlus size={28} color="#3E2C22" onPress={handleAddEvent} />
           </TouchableOpacity>
         </View>
 
-        {/* Weekdays Selector - Giống schedule */}
+        {/* Weekdays Selector - Style giống schedule */}
         <View style={styles.weekContainer}>
-          <FlatList
-            ref={weekListRef}
-            data={weeks}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item, index) => `week-${index}`}
-            initialScrollIndex={currentWeekIndex}
-            getItemLayout={(data, index) => ({
-              length: SCREEN_WIDTH,
-              offset: SCREEN_WIDTH * index,
-              index,
+          <View style={styles.weekRow}>
+            {days.map((day, index) => {
+              const isSelected = isSameDay(day, selectedDate);
+              return (
+                <TouchableOpacity key={index} onPress={() => setSelectedDate(day)} style={[styles.dayItem, isSelected && styles.dayMain]}>
+                  <Text style={[styles.dayText, isSelected && styles.dayTextActive]}>{format(day, 'EEE')}</Text>
+                  <Text style={[styles.dateText, isSelected && styles.dayTextActive]}>{format(day, 'd')}</Text>
+                </TouchableOpacity>
+              );
             })}
-            onMomentumScrollEnd={handleWeekScroll}
-            onScrollToIndexFailed={(info) => {
-              setTimeout(() => {
-                if (weekListRef.current) {
-                  weekListRef.current.scrollToIndex({
-                    index: info.index,
-                    animated: false,
-                  });
-                }
-              }, 100);
-            }}
-            renderItem={({ item }) => (
-              <View style={{ width: SCREEN_WIDTH, alignItems: 'flex-start', justifyContent: 'center' }}>
-                <View style={[styles.weekRow, { width: SCREEN_WIDTH * 0.9 }]}>
-                  {item.weekDays.map((day: Date, i: number) => {
-                    const isSelected = isSameDay(day, selectedDate);
-                    return (
-                      <TouchableOpacity key={i} onPress={() => setSelectedDate(day)} style={[styles.dayItem, isSelected && styles.dayMain]}>
-                        <Text style={[styles.dayText, isSelected && styles.dayTextActive]}>{format(day, 'EEE')}</Text>
-                        <Text style={[styles.dateText, isSelected && styles.dayTextActive]}>{format(day, 'd')}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
-          />
+          </View>
         </View>
       </View>
 
       {/* Schedule Section */}
       <View style={styles.scheduleSection}>
-        <Text style={styles.scheduleTitle}>Schedule ({format(selectedDate, 'dd/MM')})</Text>
+        <Text style={styles.scheduleTitle}>Today&apos;s schedule ({format(selectedDate, 'dd/MM')})</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color="#AC3C00" />
@@ -153,7 +91,7 @@ export default function Home() {
               const durationText =
                 durationMinutes > 60 ? `${Math.floor(durationMinutes / 60)}h${durationMinutes % 60 > 0 ? durationMinutes % 60 : ''}` : `${durationMinutes}m`;
 
-              const bgColor = item.source === 'LOCAL' ? '#AC3C00' : item.source === 'REMOTE' ? '#10B981' : '#2196F3';
+              const bgColor = item.source === 'LOCAL' ? '#AC3C00' : item.source === 'REMOTE' ? '#71504a' : '#A44063';
 
               return (
                 <View key={item.id} style={styles.eventRow}>
@@ -231,7 +169,7 @@ const styles = StyleSheet.create({
   },
   weekContainer: {
     marginTop: 10,
-    marginBottom: 20,
+    marginBottom: 5,
   },
   weekRow: {
     flexDirection: 'row',
@@ -253,13 +191,11 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 12,
-    fontFamily: 'Poppins-Regular',
     fontWeight: '600',
     color: '#3A3C6A',
   },
   dateText: {
     fontSize: 14,
-    fontFamily: 'Poppins-Regular',
     fontWeight: 'bold',
     marginTop: 2,
     color: '#3A3C6A',
@@ -271,10 +207,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   scheduleTitle: {
-    fontSize: 20,
-    fontFamily: 'Poppins-Bold',
-    color: '#3E2C22',
-    marginBottom: 16,
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
+    marginBottom: 20,
   },
   emptyState: {
     alignItems: 'center',
@@ -354,7 +290,7 @@ const styles = StyleSheet.create({
   bannerContainer: {
     backgroundColor: '#3E2C22',
     borderRadius: 14,
-    padding: 16,
+    padding: 8,
     marginHorizontal: -20,
     marginBottom: 40,
     shadowColor: '#000',
@@ -374,7 +310,7 @@ const styles = StyleSheet.create({
     color: '#8D7162',
     fontFamily: 'Poppins-Regular',
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 16,
   },
   bannerImages: {

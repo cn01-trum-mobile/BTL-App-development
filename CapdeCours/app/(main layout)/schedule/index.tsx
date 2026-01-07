@@ -234,7 +234,7 @@ export default function Schedule() {
                       // Tính height: duration (phút) * (SLOT_HEIGHT / 60)
                       const height = Math.max(duration * (SLOT_HEIGHT / 60), 30);
 
-                      const bgColor = event.source === 'LOCAL' ? '#AC3C00' : event.source === 'REMOTE' ? '#10B981' : '#2196F3';
+                      const bgColor = event.source === 'LOCAL' ? '#AC3C00' : event.source === 'REMOTE' ? '#42160dbf' : '#A44063';
 
                       return (
                         <TouchableOpacity
@@ -287,6 +287,8 @@ const styles = StyleSheet.create({
   },
   monthText: {
     fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    // fontWeight: 'bold',
     // fontWeight: '600',
     color: '#6B7280',
     marginTop: 2,
