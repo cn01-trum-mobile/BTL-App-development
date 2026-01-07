@@ -1,11 +1,43 @@
 // types/calendarTypes.ts
 
+// Trạng thái đồng bộ của event tạo trong app
+export type SyncStatus = 'pendingCreate' | 'pendingUpdate' | 'pendingDelete' | 'synced';
+
+// Event "của app" được lưu trong AsyncStorage
+export interface LocalAppEvent {
+  // ID local luôn tồn tại, dùng để tham chiếu trong app
+  localId: string;
+
+  // ID trên backend (có sau khi đã sync create thành công)
+  remoteId?: number;
+
+  title: string;
+  startDate: string; // ISO string
+  endDate: string; // ISO string
+  location?: string;
+  notes?: string;
+
+  // Trạng thái đồng bộ với backend
+  syncStatus: SyncStatus;
+
+  // Lần sửa cuối ở local (ISO string)
+  updatedAt: string;
+
+  // Soft delete ở local, dùng cho pendingDelete
+  deleted?: boolean;
+
+  // Đánh dấu event đã bị disconnect (logout) nhưng vẫn giữ remoteId để tránh duplicate khi login lại
+  isDisconnected?: boolean;
+}
+
+// Kiểu dùng cho UI (Schedule, AddEvent)
 export interface UnifiedEvent {
   // ID dùng để hiển thị trên UI (React Key)
-  // Format: "native_xxxx" hoặc "local_yyyy"
+  // Ví dụ: "native_xxxx", "local_yyyy", "remote_zzzz"
   id: string;
 
-  // ID gốc để dùng khi gọi API sửa/xóa
+  // ID gốc dùng khi sửa/xóa trong app
+  // Với event "của app" => chính là localId
   originalId: string;
 
   title: string;
@@ -15,8 +47,11 @@ export interface UnifiedEvent {
   location?: string;
   notes?: string;
 
-  // Cờ quan trọng nhất để phân biệt
-  source: 'NATIVE' | 'LOCAL';
+  // Cờ phân biệt nguồn
+  // NATIVE: lấy từ calendar hệ thống (expo-calendar), chỉ đọc
+  // LOCAL: event của app, chưa được sync lên backend
+  // REMOTE: event của app đã có trên backend (có remoteId)
+  source: 'NATIVE' | 'LOCAL' | 'REMOTE';
 
   // Dùng cho source NATIVE để biết thuộc tài khoản email nào
   calendarId?: string;

@@ -719,6 +719,37 @@ export default function DetailView() {
               <PhotoItem uri={data.uri} />
             </View>
           )}
+
+
+          {/* Header với các button */}
+          <View className="absolute top-0 left-0 right-0 pt-12 px-4 flex-row justify-between items-center">
+            {/* Back Button */}
+            <TouchableOpacity 
+              onPress={() => router.back()} 
+              className="p-3 bg-black/50 rounded-full"
+            >
+              <ChevronLeft size={24} color="white" />
+            </TouchableOpacity>
+
+            {/* Counter hiển thị số thứ tự ảnh */}
+            {photos.length > 1 && (
+              <View className="absolute left-0 right-0 items-center">
+                <View className="bg-black/50 px-4 py-2 rounded-full">
+                  <Text className="text-white text-sm font-semibold">
+                    {currentPhotoIndex + 1}/{photos.length}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Delete Button */}
+            <TouchableOpacity 
+              onPress={handleDelete} 
+              className="p-3 bg-black/50 rounded-full"
+            >
+              <Trash2 size={22} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
 
 

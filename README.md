@@ -91,6 +91,84 @@ Sinh viên thường chụp ảnh bài giảng trên bảng hoặc slide trong q
 
 ---
 
+## 🚀 Hướng dẫn cài đặt và chạy ứng dụng
+
+### Yêu cầu hệ thống
+- Node.js (phiên bản 18 trở lên)
+- npm hoặc yarn
+- Expo CLI (sẽ được cài đặt tự động)
+- Android Studio (để chạy trên Android) hoặc Xcode (để chạy trên iOS)
+
+### Bước 1: Clone repository và cài đặt dependencies
+
+```bash
+# Di chuyển vào thư mục dự án
+cd CapdeCours
+
+# Cài đặt các dependencies
+npm install
+```
+
+### Bước 2: Cấu hình biến môi trường
+
+1. Tạo file `.env` trong thư mục `CapdeCours`:
+
+```bash
+# Copy từ file .env.example
+cp .env.example .env
+```
+
+Hoặc tạo thủ công file `.env` với nội dung:
+
+```env
+API_URL=your-backend-api-url
+```
+
+**Lưu ý:** 
+- Thay đổi `API_URL` thành URL backend thực tế của bạn
+- File `.env` không được commit lên git (đã được thêm vào `.gitignore`)
+- Xem file `.env.example` để biết cấu trúc các biến môi trường cần thiết
+
+### Bước 3: Chạy ứng dụng
+
+#### Chạy trên Expo Go (nhanh nhất để test)
+
+```bash
+npm start
+```
+
+Sau đó:
+- Quét QR code bằng ứng dụng **Expo Go** trên điện thoại (Android/iOS)
+- Hoặc nhấn `a` để mở trên Android emulator
+- Hoặc nhấn `i` để mở trên iOS simulator
+
+#### Chạy trên Android
+
+```bash
+npm run android
+```
+
+#### Chạy trên iOS (chỉ trên macOS)
+
+```bash
+npm run ios
+```
+
+#### Chạy trên Web
+
+```bash
+npm run web
+```
+
+### Bước 4: Restart server sau khi thay đổi .env
+
+Nếu bạn thay đổi file `.env`, bạn cần **restart Expo dev server** để áp dụng thay đổi:
+
+1. Dừng server hiện tại (nhấn `Ctrl + C`)
+2. Chạy lại `npm start` hoặc `npm run android`/`npm run ios`
+
+---
+
 ## 🧪 Hướng dẫn kiểm thử
 
 Dự án này sử dụng **Jest** và **React Native Testing Library** để kiểm

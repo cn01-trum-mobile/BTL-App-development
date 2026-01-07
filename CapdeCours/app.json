@@ -49,7 +49,8 @@
           "project": "capde-cours",
           "organization": "nhom-trum-mobile-cn01"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
