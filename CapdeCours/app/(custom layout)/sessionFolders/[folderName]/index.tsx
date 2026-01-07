@@ -52,7 +52,7 @@ export default function SessionFolderScreen() {
       const content = await jsonFile.text();
       return JSON.parse(content);
     } catch (e) {
-      console.error('Error reading metadata from', jsonFile.uri, e);
+      console.log(e);
       return null;
     }
   };
@@ -149,7 +149,6 @@ export default function SessionFolderScreen() {
     }
   }, [folderName]); // CHỈ CÓ folderName, không có searchQuery
 
-  // Effect để load dữ liệu khi folderName thay đổi
   useEffect(() => {
     loadAndGroupPhotos();
   }, [folderName]); // CHỈ phụ thuộc vào folderName
@@ -209,6 +208,7 @@ export default function SessionFolderScreen() {
     }).filter((g): g is SessionGroup => g !== null);
   }, [sessionGroups, searchQuery]);
 
+  
   const categoryName = folderName?.split('_').join(' ') || '';
 
   const toggleSession = (id: string) => {

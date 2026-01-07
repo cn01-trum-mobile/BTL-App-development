@@ -1,164 +1,319 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import * as Calendar from 'expo-calendar';
-import { Ionicons } from '@expo/vector-icons';
-import { getData, storeData } from '@/utils/asyncStorage';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { authApi } from '@/app/services/authApi';
+import { storeData } from '@/utils/asyncStorage';
+import {
+  syncLocalEventsWithBackend,
+  syncCloudEventsToLocal,
+  getCloudEventsCount,
+  convertCloudEventsToLocal,
+  deleteCloudEvents,
+} from '@/app/services/localCalendarService';
 
-export default function CalendarSelectScreen({ navigation }: any) {
-  // Set mặc định là rỗng
-  const [calendars, setCalendars] = useState<Calendar.Calendar[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+const AUTH_SKIP_KEY = 'AUTH_SKIPPED';
 
-  // --- PHẦN 1: LOGIC MỚI ĐỂ LOAD VÀ CHECK LỊCH ---
+export default function LoginScreen() {
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+
+  // Khi vào màn hình, kiểm tra xem đã có token chưa
   useEffect(() => {
     (async () => {
-      try {
-        // 1. Xin quyền trước
-        const { status } = await Calendar.requestCalendarPermissionsAsync();
-
-        if (status !== 'granted') {
-          Alert.alert('Cần quyền truy cập', 'Ứng dụng cần quyền đọc lịch để hoạt động.');
-          setIsLoading(false);
-          return;
-        }
-
-        // 2. Chạy song song 2 tác vụ: Lấy danh sách lịch THỰC TẾ & Lấy danh sách ĐÃ LƯU
-        // Dùng Promise.all để tiết kiệm thời gian chờ
-        const [allCalendars, storedIdsJson] = await Promise.all([Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT), getData('USER_CALENDAR_IDS')]);
-
-        console.log(JSON.stringify(allCalendars, null, 2));
-
-        // 3. Lọc lịch "rác" / hệ thống
-        const filteredCalendars = allCalendars.filter((cal) => {
-          // Logic lọc: Bỏ lịch sinh nhật tự động, bỏ lịch Holidays (nếu muốn)
-          // cal.source.type === 'LOCAL' thường là lịch trong máy không đồng bộ cloud
-          const isGoogleAccount = cal.source.type === 'com.google';
-
-          const isAndroid = isGoogleAccount;
-
-          const isIOS = cal.source?.type?.toLowerCase() === 'caldav' && cal.source?.name?.toLowerCase().includes('gmail') && cal.allowsModifications === true;
-          return isAndroid || isIOS;
-        });
-
-        // 4. Khôi phục trạng thái đã chọn (Re-hydrate)
-        let newSelectedIds = new Set<string>();
-
-        if (storedIdsJson) {
-          const storedIdsArr = JSON.parse(storedIdsJson);
-
-          // Chỉ chọn những ID nào thực sự còn tồn tại trong danh sách lịch mới lấy về
-          // (Đề phòng trường hợp user đã xóa lịch đó trong cài đặt điện thoại)
-          storedIdsArr.forEach((id: string) => {
-            const exists = filteredCalendars.find((c) => c.id === id);
-            if (exists) {
-              newSelectedIds.add(id);
-            }
-          });
-        }
-
-        // 5. Cập nhật State
-        setCalendars(filteredCalendars);
-        setSelectedIds(newSelectedIds);
-      } catch (error) {
-        console.log(error);
-        Alert.alert('Lỗi', 'Không thể tải danh sách lịch');
-      } finally {
-        setIsLoading(false);
+      const token = await authApi.getToken();
+      if (token) {
+        const storedUsername = await authApi.getUsername();
+        setIsLoggedIn(true);
+        setCurrentUser(storedUsername);
+      } else {
+        setIsLoggedIn(false);
+        setCurrentUser(null);
       }
     })();
   }, []);
-  // ------------------------------------------------
 
-  // Xử lý chọn/bỏ chọn
-  const toggleSelection = (id: string) => {
-    const newSelection = new Set(selectedIds);
-    if (newSelection.has(id)) {
-      newSelection.delete(id);
-    } else {
-      newSelection.add(id);
+  const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('Missing info', 'Please enter username and password');
+      return;
     }
-    setSelectedIds(newSelection);
+
+    setLoading(true);
+    try {
+      await authApi.login(username.trim(), password);
+      await storeData(AUTH_SKIP_KEY, 'false');
+
+      // Cập nhật state UI
+      setIsLoggedIn(true);
+      setCurrentUser(username.trim());
+
+      // Sau khi login thành công:
+      // 1. Sync các event local lên backend (đẩy pending lên cloud)
+      await syncLocalEventsWithBackend();
+      // 2. Sync events từ cloud xuống local (tải về, tránh duplicate)
+      await syncCloudEventsToLocal();
+    } catch (err: any) {
+      Alert.alert('Login failed', err?.message || 'Cannot login, please try again');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Xử lý lưu
-  const handleContinue = async () => {
-    if (selectedIds.size === 0) return;
+  const handleSkip = async () => {
+    await storeData(AUTH_SKIP_KEY, 'true');
+    router.replace('/(main layout)/login/chooseCalendar');
+  };
 
-    setIsSaving(true);
+  const handleOpenSystemCalendarConnect = () => {
+    router.push('/(main layout)/login/chooseCalendar');
+  };
+
+  const handleLogout = async () => {
+    setLoading(true);
     try {
-      const idsArray = Array.from(selectedIds);
-      await storeData('USER_CALENDAR_IDS', JSON.stringify(idsArray));
-      Alert.alert('Thành công', `Đã cập nhật ${idsArray.length} nguồn lịch.`);
-      // navigation.navigate('Home'); // Ví dụ chuyển trang
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (e) {
-      Alert.alert('Lỗi', 'Không thể lưu dữ liệu');
-    } finally {
-      setIsSaving(false);
+      // Bước 1: Sync lại tất cả event chưa được sync lên cloud trước khi logout
+      try {
+        await syncLocalEventsWithBackend();
+      } catch (err) {
+        console.warn('Sync before logout failed:', err);
+        // Vẫn tiếp tục logout dù sync lỗi
+      }
+
+      // Bước 2: Đếm số event cloud
+      const cloudEventsCount = await getCloudEventsCount();
+
+      // Bước 3: Nếu có event cloud, hỏi user muốn giữ hay xóa
+      if (cloudEventsCount > 0) {
+        Alert.alert('Cloud Events', `You have ${cloudEventsCount} event(s) synced to the cloud. What would you like to do?`, [
+          {
+            text: 'Keep as local',
+            style: 'default',
+            onPress: async () => {
+              // Chuyển cloud events thành local (màu nâu)
+              await convertCloudEventsToLocal();
+              await performLogout();
+            },
+          },
+          {
+            text: 'Delete all',
+            style: 'destructive',
+            onPress: async () => {
+              // Xóa hết cloud events
+              await deleteCloudEvents();
+              await performLogout();
+            },
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => {
+              setLoading(false);
+            },
+          },
+        ]);
+      } else {
+        // Không có event cloud, logout luôn
+        await performLogout();
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+      Alert.alert('Error', 'An error occurred during logout.');
+      setLoading(false);
     }
+  };
+
+  const performLogout = async () => {
+    await authApi.logout();
+    await storeData(AUTH_SKIP_KEY, 'false');
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    setUsername('');
+    setPassword('');
+    setLoading(false);
+    Alert.alert('Logged out', 'You have been logged out.');
+  };
+
+  const handleChangePassword = () => {
+    // TODO: Điều hướng sang màn đổi mật khẩu riêng nếu bạn tạo route, tạm thời chỉ alert
+    Alert.alert('Change password', 'Implement change password screen / API here.');
   };
 
   return (
-    <View className="flex-1 bg-[#FFF8E3] flex-col items-center pt-2 px-5">
-      {/* Header */}
-      <View className="mt-8 mb-6 items-center px-4">
-        <Text className="text-[24px] font-sen font-bold text-[#AC3C00] text-center mb-2">Add your schedule</Text>
-        <Text className="text-[14px] font-sen text-[#646982] text-center leading-5">Choose the sources you want to connect.</Text>
-      </View>
+    <View style={styles.container}>
+      <Text style={styles.title}>Welcome back</Text>
+      <Text style={styles.subtitle}>
+        {isLoggedIn ? 'Your account is connected. You can manage cloud sync and calendar sources here.' : 'Sign in to sync your study schedule to the cloud.'}
+      </Text>
 
-      {/* List */}
-      {isLoading ? (
-        <View className="flex-1 justify-center">
-          <ActivityIndicator size="large" color="#AC3C00" />
+      {isLoggedIn ? (
+        <View style={styles.form}>
+          <Text style={styles.profileLabel}>Signed in as</Text>
+          <Text style={styles.profileName}>{currentUser || 'User'}</Text>
+
+          <TouchableOpacity style={styles.primaryButton} onPress={handleOpenSystemCalendarConnect}>
+            <Text style={styles.primaryButtonText}>Add from system calendar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleChangePassword}>
+            <Text style={styles.secondaryButtonText}>Change password</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView className="w-full flex-1 mb-6" showsVerticalScrollIndicator={false}>
-          {calendars.length === 0 ? (
-            <Text className="text-center mt-10 text-gray-500">There is no available schedule.</Text>
-          ) : (
-            calendars.map((cal) => {
-              const isSelected = selectedIds.has(cal.id);
-              return (
-                <TouchableOpacity
-                  key={cal.id}
-                  onPress={() => toggleSelection(cal.id)}
-                  activeOpacity={0.7}
-                  className={`flex-row items-center p-4 mb-3 rounded-2xl border ${
-                    !isSelected ? 'bg-[#FFF5F0] border-[#AC3C00]' : 'bg-primary border-gray-100'
-                  }`}
-                >
-                  <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${!isSelected ? 'bg-primary' : 'bg-gray-100'}`}>
-                    <Ionicons name={!isSelected ? 'calendar' : 'calendar-outline'} size={20} color={!isSelected ? 'white' : '#646982'} />
-                  </View>
+        <View style={styles.form}>
+          <Text style={styles.label}>Username</Text>
+          <TextInput style={styles.input} placeholder="Enter username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
 
-                  <View className="flex-1">
-                    <Text className={`font-sen text-[14px] font-bold ${!isSelected ? 'text-primary' : 'text-[#ffffff]'}`}>{cal.title}</Text>
-                    <Text className={`font-sen text-[12px] font-bold ${!isSelected ? 'text-[#646982]' : 'text-[#ffefe6ff]'}`}>{cal.source.name}</Text>
-                  </View>
-                  {isSelected && <Ionicons name="checkmark-circle" size={24} color="white" />}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </ScrollView>
+          <Text style={[styles.label, { marginTop: 16 }]}>Password</Text>
+          <TextInput style={styles.input} placeholder="Enter password" value={password} onChangeText={setPassword} secureTextEntry />
+
+          <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>LOGIN</Text>}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip} disabled={loading}>
+            <Text style={styles.skipButtonText}>Skip for now</Text>
+            <Text style={styles.skipHint}>You can still use local & system calendar without an account.</Text>
+          </TouchableOpacity>
+        </View>
       )}
-
-      {/* Button */}
-      <View className="w-full items-center mb-8 bg-[#FFF8E3] pt-2">
-        <TouchableOpacity
-          className={`h-[50px] w-[200px] rounded-xl items-center justify-center flex-row shadow-sm ${selectedIds.size > 0 ? 'bg-[#AC3C00]' : 'bg-gray-300'}`}
-          onPress={handleContinue}
-          disabled={selectedIds.size === 0 || isSaving}
-        >
-          {isSaving ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <Text className="text-white font-sen text-[14px] font-bold uppercase tracking-widest">CONTINUE ({selectedIds.size})</Text>
-          )}
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFF8E3',
+    paddingHorizontal: 24,
+    paddingTop: 80,
+    fontFamily: 'Poppins-Regular',
+  },
+  title: {
+    fontSize: 24,
+    fontFamily: 'Poppins-Bold',
+    color: '#AC3C00',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#646982',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  form: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  profileLabel: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  profileName: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: '#3E2C22',
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#3E2C22',
+    marginBottom: 6,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    backgroundColor: '#FFF',
+  },
+  loginButton: {
+    marginTop: 24,
+    backgroundColor: '#AC3C00',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+  },
+  skipButton: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  skipButtonText: {
+    color: '#6B7280',
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    fontWeight: '600',
+  },
+  skipHint: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+  primaryButton: {
+    marginTop: 8,
+    backgroundColor: '#AC3C00',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+  },
+  secondaryButton: {
+    marginTop: 12,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  secondaryButtonText: {
+    color: '#374151',
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    fontWeight: '600',
+  },
+  logoutButton: {
+    marginTop: 16,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  logoutButtonText: {
+    color: '#B91C1C',
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    fontWeight: '600',
+  },
+});

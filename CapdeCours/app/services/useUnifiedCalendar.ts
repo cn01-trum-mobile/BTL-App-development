@@ -3,7 +3,8 @@ import { useState, useCallback } from 'react';
 import * as Calendar from 'expo-calendar';
 import { getData } from '@/utils/asyncStorage';
 import { UnifiedEvent } from '../types/calendarTypes';
-import { getLocalEvents } from './localCalendarService';
+import { getLocalUnifiedEventsInRange } from './localCalendarService';
+import { calendarApi } from './calenderApi';
 
 export const useUnifiedCalendar = () => {
   const [events, setEvents] = useState<UnifiedEvent[]>([]);
@@ -27,31 +28,66 @@ export const useUnifiedCalendar = () => {
             originalId: e.id,
             title: e.title,
 
-            // 1. Fix lỗi Date: Ép kiểu về ISO String
+            // Fix lỗi Date: Ép kiểu về ISO String
             startDate: new Date(e.startDate).toISOString(),
             endDate: new Date(e.endDate).toISOString(),
 
-            // 2. Fix lỗi Location/Notes: Chuyển null thành undefined
+            // Fix lỗi Location/Notes: Chuyển null thành undefined
             location: e.location || undefined,
             notes: e.notes || undefined,
 
-            source: 'NATIVE' as const, // Thêm as const để chắc chắn type đúng
+            source: 'NATIVE' as const,
             calendarId: e.calendarId,
             color: '#2196F3',
           }));
         }
       }
 
-      // 2. FETCH LOCAL (Từ service ở Bước 2)
-      // Lưu ý: Local service demo đang load all, thực tế nên filter theo start/end
-      const allLocal = await getLocalEvents();
-      const localEventsMapped = allLocal.filter((e) => {
-        const eStart = new Date(e.startDate).getTime();
-        return eStart >= start.getTime() && eStart <= end.getTime();
+      // 2. FETCH LOCAL/REMOTE (từ AsyncStorage – đã map sẵn sang UnifiedEvent)
+      const localAndRemote = await getLocalUnifiedEventsInRange(start, end);
+
+      // 3. FETCH REMOTE trực tiếp (đồng bộ xuống đơn giản, không lưu offline)
+      let remoteFromBackend: UnifiedEvent[] = [];
+      try {
+        const remoteEvents = await calendarApi.getAll();
+        remoteFromBackend = remoteEvents
+          .filter((e: any) => {
+            const eStart = new Date(e.startDate).getTime();
+            return eStart >= start.getTime() && eStart <= end.getTime();
+          })
+          .map((e: any) => ({
+            id: `remote_${e.id}`,
+            originalId: String(e.id), // nếu muốn lưu offline thì map sang LocalAppEvent sau
+            title: e.title,
+            startDate: e.startDate,
+            endDate: e.endDate,
+            location: e.location || undefined,
+            notes: e.notes || undefined,
+            source: 'REMOTE' as const,
+            color: '#10B981',
+          }));
+      } catch (err) {
+        // Nếu chưa login hoặc backend lỗi thì chỉ log, không làm app crash
+        console.warn('Không load được event từ backend:', err);
+      }
+
+      // 4. GỘP + DEDUP theo id (ưu tiên bản local/remote trong AsyncStorage vì có thể chứa thay đổi pending)
+      const map = new Map<string, UnifiedEvent>();
+
+      // Ưu tiên native trước (id riêng)
+      nativeEventsMapped.forEach((ev) => map.set(ev.id, ev));
+
+      // Ưu tiên local/remote đã lưu offline
+      localAndRemote.forEach((ev) => map.set(ev.id, ev));
+
+      // Remote fetch trực tiếp: chỉ thêm nếu chưa có (tránh trùng remote_x)
+      remoteFromBackend.forEach((ev) => {
+        if (!map.has(ev.id)) {
+          map.set(ev.id, ev);
+        }
       });
 
-      // 3. GỘP VÀ SORT
-      const merged = [...nativeEventsMapped, ...localEventsMapped].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      const merged = Array.from(map.values()).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
       setEvents(merged);
     } catch (error) {

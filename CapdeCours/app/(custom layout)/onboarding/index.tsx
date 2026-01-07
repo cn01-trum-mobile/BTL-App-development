@@ -90,7 +90,7 @@ export default function Onboarding() {
         <View className="w-full justify-center">
           <Text className="font-sunshiney text-[24px] font-semibold text-[#32343E] opacity-80 text-center">CapdeCours</Text>
           <TouchableOpacity onPress={handleSkip} activeOpacity={0.8} className="absolute right-0">
-            <Text className="text-[16px] font-sen text-[#646982] text-center mt-1">Skip</Text>
+            <Text className="text-[16px] font-poppins-regular text-[#646982] text-center mt-1">Skip</Text>
           </TouchableOpacity>
         </View>
 
@@ -100,9 +100,9 @@ export default function Onboarding() {
             return (
               <View className="flex-1 items-center justify-center px-6" key={idx} style={{ width: screenWidth }}>
                 <Image source={val.image} resizeMode="contain" className="w-[316px] h-[316px]" />
-                <Text className="text-[24px] font-sen font-bold text-[#AC3C00] text-center mb-4">{val.title}</Text>
+                <Text className="text-[24px] font-poppins-regular font-bold text-[#AC3C00] text-center mb-4">{val.title}</Text>
 
-                <Text className="text-[16px] font-sen text-[#646982] text-center leading-6 mb-12 px-1">{val.description}</Text>
+                <Text className="text-[16px] font-poppins-regular text-[#646982] text-center leading-6 mb-12 px-1">{val.description}</Text>
               </View>
             );
           })}
@@ -115,7 +115,7 @@ export default function Onboarding() {
             <View className={'h-[45.5px] w-[73px] px-5 rounded-xl items-center justify-center mb-4 opacity-0'}></View>
           ) : (
             <TouchableOpacity onPress={handlePrev} activeOpacity={0.9} className={'h-[45.5px] w-[73px] rounded-xl bg-primary items-center justify-center mb-4'}>
-              <Text className="text-white font-sen text-[14px] font-bold uppercase opacity-80">Prev</Text>
+              <Text className="text-white font-poppins-regular text-[14px] font-bold uppercase opacity-80">Prev</Text>
             </TouchableOpacity>
           )}
 
@@ -128,7 +128,9 @@ export default function Onboarding() {
 
           {/* Buttons */}
           <TouchableOpacity onPress={handleNext} activeOpacity={0.9} className="h-[45.5px] w-[73px] rounded-xl bg-primary items-center justify-center mb-4">
-            <Text className="text-white font-sen text-[14px] font-bold uppercase opacity-80">{currentScreen === screens.length - 1 ? 'Start' : 'Next'}</Text>
+            <Text className="text-white font-poppins-regular text-[14px] font-bold uppercase opacity-80">
+              {currentScreen === screens.length - 1 ? 'Start' : 'Next'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
