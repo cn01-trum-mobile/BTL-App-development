@@ -1,6 +1,7 @@
 import { storeData, getData } from '@/utils/asyncStorage';
+import Constants from 'expo-constants';
 
-const API_URL = 'https://b570db798a0f.ngrok-free.app'; // TODO: đổi thành URL backend thật
+const API_URL = Constants.expoConfig?.extra?.apiUrl || 'https://b570db798a0f.ngrok-free.app';
 const TOKEN_KEY = 'AUTH_TOKEN';
 const USERNAME_KEY = 'AUTH_USERNAME';
 

@@ -1,8 +1,8 @@
 import { UnifiedEvent } from '../types/calendarTypes';
 import { authApi } from './authApi';
+import Constants from 'expo-constants';
 
-// Giả sử API endpoint của bạn
-const API_URL = 'https://b570db798a0f.ngrok-free.app'; // TODO: đổi thành URL backend thật
+const API_URL = Constants.expoConfig?.extra?.apiUrl || 'https://b570db798a0f.ngrok-free.app';
 
 // Hàm helper fetch
 const fetchWithAuth = async (endpoint: string, options: any = {}) => {
