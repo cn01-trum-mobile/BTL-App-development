@@ -437,6 +437,19 @@ export default function DetailView() {
 
   // C. Xử lý khi chọn 1 Session -> Thực hiện Move
   const handleSelectSession = async (session: string) => {
+    if (session === data.session) {
+      setViewMode('details');
+      requestAnimationFrame(() => {
+        bottomSheetRef.current?.snapToIndex(1);
+      });
+
+      Alert.alert(
+        'No Change',
+        'This image is already in this session.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     await finalizeMove(selectedTargetFolder, session);
   };
 
@@ -473,12 +486,19 @@ export default function DetailView() {
     try {
       // Kiểm tra xem có thay đổi gì không
       if (targetFolder === data.folder && targetSession === data.session) {
-        setViewMode('details');
-        requestAnimationFrame(() => {
-          bottomSheetRef.current?.snapToIndex(3);
-        });
-        return;
-      }
+      setViewMode('details');
+      requestAnimationFrame(() => {
+        bottomSheetRef.current?.snapToIndex(3);
+      });
+      
+      // Hiển thị thông báo
+      Alert.alert(
+        'No Change',
+        'The image is already in the selected folder and session.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
       setLoading(true);
 
@@ -960,19 +980,34 @@ export default function DetailView() {
                 )}
 
                 <View className="gap-y-3">
-                  {availableSessions.map((session) => (
-                    <TouchableOpacity
-                      key={session}
-                      onPress={() => handleSelectSession(session)}
-                      className="w-full flex-row items-center justify-between px-5 py-4 rounded-[20px] bg-[#FFE4C4]"
-                    >
-                      <Text className="font-bold text-[#4B3B36] text-sm uppercase">{session}</Text>
-                      <ChevronLeft size={20} color="#4B3B36" style={{ transform: [{ rotate: '180deg' }] }} />
-                    </TouchableOpacity>
-                  ))}
-                   {availableSessions.length === 0 && (
-                       <Text className="text-gray-400 text-center italic mt-4">No sessions found in this folder.</Text>
-                   )}
+                  {availableSessions.map((session) => {
+                    const isCurrent = session === data.session && selectedTargetFolder === data.folder;
+                    
+                    return (
+                      <TouchableOpacity
+                        key={session}
+                        onPress={() => handleSelectSession(session)}
+                        className={`w-full flex-row items-center justify-between px-5 py-4 rounded-[20px] ${
+                          isCurrent ? 'bg-[#6E4A3F]' : 'bg-[#FFE4C4]'
+                        }`}
+                      >
+                        <Text className={`font-bold text-sm uppercase ${
+                          isCurrent ? 'text-white' : 'text-[#4B3B36]'
+                        }`}>
+                          {session}
+                          {isCurrent && ' (Current)'}
+                        </Text>
+                        {isCurrent ? (
+                          <Check size={20} color="white" />
+                        ) : (
+                          <ChevronLeft size={20} color="#4B3B36" style={{ transform: [{ rotate: '180deg' }] }} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {availableSessions.length === 0 && (
+                      <Text className="text-gray-400 text-center italic mt-4">No sessions found in this folder.</Text>
+                  )}
                 </View>
 
                 {/* Floating Add Session */}
