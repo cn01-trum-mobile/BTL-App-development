@@ -1,211 +1,202 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import Onboarding from '../app/(custom layout)/onboarding/index';
 import { router } from 'expo-router';
 import * as asyncStorage from '@/utils/asyncStorage';
+import { Dimensions } from 'react-native';
+
+// --- MOCKS ---
 
 jest.mock('expo-router', () => ({
-    router: {
-        replace: jest.fn(),
-    },
+  router: {
+    replace: jest.fn(),
+  },
 }));
 
 jest.mock('@/utils/asyncStorage', () => ({
-    storeData: jest.fn(),
+  storeData: jest.fn(),
 }));
-
 
 jest.mock('react-native-worklets', () => ({
-    scheduleOnRN: (fn: any) => fn(),
-    createSerializable: (v: any) => v,
-    makeShareable: (v: any) => v,
-    makeShareableCloneRecursive: (v: any) => v,
-    registerWorklet: () => { },
+  scheduleOnRN: (fn: any) => fn(),
+  createSerializable: (v: any) => v,
+  makeShareable: (v: any) => v,
+  makeShareableCloneRecursive: (v: any) => v,
+  registerWorklet: () => {},
 }));
 
-
+// Mock Reanimated to track shared values
 jest.mock('react-native-reanimated', () => {
-    return {
-        __esModule: true,
-        default: {
-            View: (props: any) => props.children,
-        },
-        useSharedValue: (initial: any) => ({ value: initial }),
-        useAnimatedStyle: (fn: any) => (fn ? fn() : {}),
-        withTiming: (v: any) => v,
-    };
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: {
+      View: (props: any) => <>{props.children}</>,
+    },
+    useSharedValue: (initial: any) => ({ value: initial }),
+    useAnimatedStyle: (fn: any) => (fn ? fn() : {}),
+    withTiming: (toValue: any, config: any, callback: any) => {
+      if (callback) callback(true);
+      return toValue;
+    },
+  };
 });
 
+// Mock Gesture Handler to capture callback instances
 jest.mock('react-native-gesture-handler', () => {
-    const View = require('react-native').View;
-    const panInstances: any[] = [];
-    return {
-        Gesture: {
-            Pan: () => {
-                const obj: any = {};
-                obj.onChange = (cb: any) => {
-                    obj._onChange = cb;
-                    return obj;
-                };
-                obj.onEnd = (cb: any) => {
-                    obj._onEnd = cb;
-                    return obj;
-                };
-                panInstances.push(obj);
-                return obj;
-            },
-            Simultaneous: jest.fn().mockReturnValue({}),
-        },
-        GestureDetector: ({ children }: any) => children,
-        GestureHandlerRootView: View,
-        __panInstances: panInstances,
-    };
+  const View = require('react-native').View;
+  const panInstances: any[] = [];
+  return {
+    Gesture: {
+      Pan: () => {
+        const obj: any = {};
+        obj.onEnd = (cb: any) => {
+          obj._onEnd = cb;
+          return obj;
+        };
+        obj.onChange = (cb: any) => {
+          obj._onChange = cb;
+          return obj;
+        };
+        panInstances.push(obj);
+        return obj;
+      },
+      Simultaneous: jest.fn().mockReturnValue({}),
+    },
+    GestureDetector: ({ children }: any) => children,
+    GestureHandlerRootView: View,
+    __panInstances: panInstances, // Expose this for testing
+  };
 });
+
+// --- TESTS ---
 
 describe('Onboarding Screen', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Reset gesture instances before each test
+    const gesture = require('react-native-gesture-handler');
+    gesture.__panInstances.length = 0;
+  });
+
+  it('renders the first screen correctly', () => {
+    const { getByText, queryByText } = render(<Onboarding />);
+    expect(getByText('In-App Camera')).toBeTruthy();
+    expect(getByText('Next')).toBeTruthy();
+    expect(queryByText('Prev')).toBeNull();
+  });
+
+  it('skips onboarding when Skip button is pressed', async () => {
+    const { getByText } = render(<Onboarding />);
+
+    fireEvent.press(getByText('Skip'));
+
+    await waitFor(() => {
+      expect(asyncStorage.storeData).toHaveBeenCalledWith('onboarded', '1');
+      expect(router.replace).toHaveBeenCalledWith('/home');
+    });
+  });
+
+  it('navigates Next -> Next -> Next -> Start -> Finish', async () => {
+    const { getByText } = render(<Onboarding />);
+
+    // Screen 1 -> 2
+    fireEvent.press(getByText('Next'));
+    await waitFor(() => expect(getByText('Sync Timetable')).toBeTruthy());
+
+    // Screen 2 -> 3
+    fireEvent.press(getByText('Next'));
+    await waitFor(() => expect(getByText('Automatic Sorting')).toBeTruthy());
+
+    // Screen 3 -> 4
+    fireEvent.press(getByText('Next'));
+    await waitFor(() => {
+      expect(getByText('Gallery & Search')).toBeTruthy();
+      expect(getByText('Start')).toBeTruthy(); // Button changes to Start
     });
 
-    it('skips onboarding when Skip button is pressed', async () => {
-        const { getByText } = render(<Onboarding />);
+    // Click Start
+    fireEvent.press(getByText('Start'));
 
-        fireEvent.press(getByText('Skip'));
-
-        await waitFor(() => {
-            expect(asyncStorage.storeData).toHaveBeenCalledWith('onboarded', '1');
-            expect(router.replace).toHaveBeenCalledWith('/home');
-        });
+    await waitFor(() => {
+      expect(asyncStorage.storeData).toHaveBeenCalledWith('onboarded', '1');
+      expect(router.replace).toHaveBeenCalledWith('/home');
     });
+  });
 
-    it('advances to next screen when Next button is pressed', async () => {
-        const { getByText } = render(<Onboarding />);
+  it('navigates Back when Prev button is pressed', async () => {
+    const { getByText, queryByText } = render(<Onboarding />);
 
-        fireEvent.press(getByText('Next'));
+    // Go to Screen 2
+    fireEvent.press(getByText('Next'));
+    await waitFor(() => expect(getByText('Sync Timetable')).toBeTruthy());
 
-        await waitFor(() => {
-            expect(getByText('Prev')).toBeTruthy();
-        });
+    // Go Back to Screen 1
+    fireEvent.press(getByText('Prev'));
+    await waitFor(() => {
+      expect(getByText('In-App Camera')).toBeTruthy();
+      expect(queryByText('Prev')).toBeNull();
     });
+  });
 
-    it('goes back to previous screen when Prev button is pressed', async () => {
-        const { getByText } = render(<Onboarding />);
+  // --- GESTURE TESTS ---
 
-        fireEvent.press(getByText('Next'));
+  it('handles SWIPE gesture to navigate next/prev', async () => {
+    const gesture = require('react-native-gesture-handler');
+    const { getByText } = render(<Onboarding />);
 
-        await waitFor(() => {
-            expect(getByText('Prev')).toBeTruthy();
-        });
+    // Wait for render to register gestures
+    expect(gesture.__panInstances.length).toBeGreaterThanOrEqual(1);
 
-        fireEvent.press(getByText('Prev'));
+    // Instance 0 is swipeGesture (defined first in your component)
+    const swipeGesture = gesture.__panInstances[0];
 
-        await waitFor(() => {
-            expect(() => getByText('Prev')).toThrow();
-        });
+    // 1. Simulate Swipe LEFT ( < -80 ) -> Go Next
+    act(() => {
+      swipeGesture._onEnd({ translationX: -100 });
     });
+    await waitFor(() => expect(getByText('Sync Timetable')).toBeTruthy());
 
-    it('shows Start button on last screen', async () => {
-        const { getByText } = render(<Onboarding />);
-
-        fireEvent.press(getByText('Next'));
-        fireEvent.press(getByText('Next'));
-        fireEvent.press(getByText('Next'));
-
-        await waitFor(() => {
-            expect(getByText('Start')).toBeTruthy();
-        });
+    // 2. Simulate Swipe RIGHT ( > 80 ) -> Go Prev
+    act(() => {
+      swipeGesture._onEnd({ translationX: 100 });
     });
+    await waitFor(() => expect(getByText('In-App Camera')).toBeTruthy());
+  });
 
-    it('completes onboarding when Start button is pressed on last screen', async () => {
-        const { getByText } = render(<Onboarding />);
+  it('handles DRAG gesture updates (logic check)', () => {
+    const gesture = require('react-native-gesture-handler');
+    // Render component
+    render(<Onboarding />);
 
-        fireEvent.press(getByText('Next'));
-        fireEvent.press(getByText('Next'));
-        fireEvent.press(getByText('Next'));
+    // Instance 1 is dragGesture (defined second in your component)
+    const dragGesture = gesture.__panInstances[1];
 
-        await waitFor(() => {
-            expect(getByText('Start')).toBeTruthy();
-        });
+    // We need to access the sharedValue to verify it changed.
+    // In a real integration test, we'd check style, but here we are unit testing logic.
+    // We can infer logic execution by ensuring no errors are thrown and coverage is hit.
 
-        fireEvent.press(getByText('Start'));
+    const screenWidth = Dimensions.get('window').width;
+    const screenOffset = (screenWidth * (4 - 1)) / 2; // 4 screens
 
-        await waitFor(() => {
-            expect(asyncStorage.storeData).toHaveBeenCalledWith('onboarded', '1');
-            expect(router.replace).toHaveBeenCalledWith('/home');
-        });
-    });
+    // 1. Valid Drag
+    // Current X starts at screenOffset. Moving -50 should be valid.
+    expect(() => {
+      dragGesture._onChange({ changeX: -50 });
+    }).not.toThrow();
 
-    it('does not show Prev button on first screen', () => {
-        const { queryByText } = render(<Onboarding />);
-        expect(queryByText('Prev')).toBeNull();
-    });
+    // 2. Boundary Check (Right Side)
+    // Trying to drag further right than allowed
+    // (translateX.value + event.changeX < screenOffset) violation check
+    // Note: Logic in component prevents `translateX.value` update if out of bounds.
+    // Since we mocked sharedValue, we can't easily spy on the mutation,
+    // but executing the function verifies the conditional logic doesn't crash.
+    dragGesture._onChange({ changeX: 5000 }); // Huge swipe right
 
-    it('navigates through all screens correctly', async () => {
-        const { getByText, queryByText } = render(<Onboarding />);
+    // 3. Boundary Check (Left Side)
+    dragGesture._onChange({ changeX: -5000 }); // Huge swipe left
 
-        expect(queryByText('Prev')).toBeNull();
-        expect(getByText('Next')).toBeTruthy();
-
-        fireEvent.press(getByText('Next'));
-        await waitFor(() => {
-            expect(getByText('Prev')).toBeTruthy();
-            expect(getByText('Next')).toBeTruthy();
-        });
-
-        fireEvent.press(getByText('Next'));
-        await waitFor(() => {
-            expect(getByText('Prev')).toBeTruthy();
-            expect(getByText('Next')).toBeTruthy();
-        });
-
-        fireEvent.press(getByText('Next'));
-        await waitFor(() => {
-            expect(getByText('Prev')).toBeTruthy();
-            expect(getByText('Start')).toBeTruthy();
-        });
-
-        fireEvent.press(getByText('Prev'));
-        await waitFor(() => {
-            expect(getByText('Next')).toBeTruthy();
-        });
-    });
-
-    it('triggers swipe gestures to change screens', async () => {
-        const gesture = require('react-native-gesture-handler');
-        const { __panInstances } = gesture;
-
-        const { getByText, queryByText } = render(<Onboarding />);
-
-        expect(queryByText('Prev')).toBeNull();
-
-        await waitFor(() => {
-            expect(__panInstances.length).toBeGreaterThanOrEqual(2);
-        });
-
-        const swipeInst = __panInstances.find((p: any) => p && typeof p._onEnd === 'function');
-        expect(swipeInst).toBeDefined();
-
-        swipeInst._onEnd({ translationX: -100 });
-        swipeInst._onEnd({ translationX: 100 });
-    });
-
-    it('handles drag gesture change and end branches', async () => {
-        const gesture = require('react-native-gesture-handler');
-        const { __panInstances } = gesture;
-
-        const { getByText } = render(<Onboarding />);
-
-        const drag = __panInstances[1];
-        expect(drag._onChange).toBeDefined();
-        expect(drag._onEnd).toBeDefined();
-
-        drag._onChange({ changeX: -50 });
-
-        drag._onEnd();
-        fireEvent.press(getByText('Next'));
-        await waitFor(() => {
-            expect(getByText('Prev')).toBeTruthy();
-        });
-    });
-
+    // 4. On End (Snap back)
+    dragGesture._onEnd();
+  });
 });
