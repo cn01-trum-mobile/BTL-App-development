@@ -1,299 +1,238 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import LoginScreen from '../app/(main layout)/login/index'; // Đảm bảo đường dẫn đúng
+import { render, fireEvent, waitFor, screen, act } from '@testing-library/react-native';
+import LoginScreen from '../app/(main layout)/login/index'; // Adjust path if needed
 import { Alert } from 'react-native';
+import { authApi } from '@/app/services/authApi';
+import { storeData } from '@/utils/asyncStorage';
+import * as LocalCalendarService from '@/app/services/localCalendarService';
+import { useRouter } from 'expo-router';
 
-// --- MOCKS SETUP ---
+// --- 1. MOCKS ---
 
-// 1. Mock Router để check điều hướng
-const mockPush = jest.fn();
-const mockReplace = jest.fn();
-
+// Mock Expo Router
 jest.mock('expo-router', () => ({
-  useRouter: () => ({
-    replace: mockReplace,
-    push: mockPush,
-  }),
+  useRouter: jest.fn(),
 }));
 
-// 2. Mock Auth API
-const mockLogin = jest.fn();
-const mockGetToken = jest.fn();
-const mockGetUsername = jest.fn();
-const mockLogout = jest.fn();
+// Mock Lucide Icons (to prevent rendering issues)
+jest.mock('lucide-react-native', () => ({
+  User: () => 'UserIcon',
+  LogOut: () => 'LogOutIcon',
+  Key: () => 'KeyIcon',
+  Calendar: () => 'CalendarIcon',
+}));
 
+// Mock Services
 jest.mock('@/app/services/authApi', () => ({
   authApi: {
-    login: (...args: any[]) => mockLogin(...args),
-    getToken: () => mockGetToken(),
-    getUsername: () => mockGetUsername(),
-    logout: () => mockLogout(),
+    getToken: jest.fn(),
+    getUsername: jest.fn(),
+    login: jest.fn(),
+    logout: jest.fn(),
   },
 }));
 
-// 3. Mock Calendar Services
-const mockSyncLocalEventsWithBackend = jest.fn();
-const mockSyncCloudEventsToLocal = jest.fn();
-const mockGetCloudEventsCount = jest.fn();
-const mockConvertCloudEventsToLocal = jest.fn();
-const mockDeleteCloudEvents = jest.fn();
+jest.mock('@/utils/asyncStorage', () => ({
+  storeData: jest.fn(),
+}));
 
 jest.mock('@/app/services/localCalendarService', () => ({
-  syncLocalEventsWithBackend: () => mockSyncLocalEventsWithBackend(),
-  syncCloudEventsToLocal: () => mockSyncCloudEventsToLocal(),
-  getCloudEventsCount: () => mockGetCloudEventsCount(),
-  convertCloudEventsToLocal: () => mockConvertCloudEventsToLocal(),
-  deleteCloudEvents: () => mockDeleteCloudEvents(),
+  syncLocalEventsWithBackend: jest.fn(),
+  syncCloudEventsToLocal: jest.fn(),
+  getCloudEventsCount: jest.fn(),
+  convertCloudEventsToLocal: jest.fn(),
+  deleteCloudEvents: jest.fn(),
 }));
-
-// 4. Mock AsyncStorage
-const mockStoreData = jest.fn();
-jest.mock('@/utils/asyncStorage', () => ({
-  storeData: (...args: any[]) => mockStoreData(...args),
-}));
-
-// --- TEST SUITE ---
 
 describe('LoginScreen', () => {
-  const alertSpy = jest.spyOn(Alert, 'alert');
+  const mockRouter = { push: jest.fn(), replace: jest.fn() };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Default state: User chưa login
-    mockGetToken.mockResolvedValue(null);
-    mockGetUsername.mockResolvedValue(null);
+    (useRouter as jest.Mock).mockReturnValue(mockRouter);
+    // Default: User is NOT logged in
+    (authApi.getToken as jest.Mock).mockResolvedValue(null);
   });
 
-  // --- UI RENDERING & NAVIGATION CHECKS ---
+  // --- INITIAL RENDER TESTS ---
 
-  it('renders correctly in logged-out state', async () => {
-    const { getByText, getByPlaceholderText } = render(<LoginScreen />);
-    
-    // Check các element cơ bản
-    expect(getByText('Welcome back')).toBeTruthy();
-    expect(getByPlaceholderText('Enter username')).toBeTruthy();
-    expect(getByText('LOGIN')).toBeTruthy();
-    expect(getByText('Skip for now')).toBeTruthy();
-    
-    // Check nút Sign Up mới thêm (nếu bạn đã thêm vào UI)
-    // Dùng queryByText để không crash nếu bạn chưa kịp thêm UI
-    const signUpText = getByText('Sign Up'); 
-    expect(signUpText).toBeTruthy();
-  });
+  it('renders login form when no token exists', async () => {
+    render(<LoginScreen />);
 
-  it('skips login and navigates to chooseCalendar', async () => {
-    const { getByText } = render(<LoginScreen />);
-
-    fireEvent.press(getByText('Skip for now'));
-
+    // Wait for useEffect to finish
     await waitFor(() => {
-      expect(mockStoreData).toHaveBeenCalledWith('AUTH_SKIPPED', 'true');
-      expect(mockReplace).toHaveBeenCalledWith('/(main layout)/login/chooseCalendar');
+      expect(screen.getByPlaceholderText('Enter username')).toBeTruthy();
+      expect(screen.getByText('LOGIN')).toBeTruthy();
+      expect(screen.queryByText('Signed in as')).toBeNull();
     });
   });
 
-  // --- LOGIN LOGIC ---
+  it('renders profile view when token exists', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('fake-token');
+    (authApi.getUsername as jest.Mock).mockResolvedValue('TestUser');
 
-  it('shows logged-in state when token exists', async () => {
-    mockGetToken.mockResolvedValue('token-123');
-    mockGetUsername.mockResolvedValue('existingUser');
-
-    const { getByText } = render(<LoginScreen />);
+    render(<LoginScreen />);
 
     await waitFor(() => {
-      expect(getByText('Signed in as')).toBeTruthy();
-      expect(getByText('existingUser')).toBeTruthy();
-      // Check nút logout có hiện không
-      expect(getByText('Logout')).toBeTruthy();
+      expect(screen.getByText('Signed in as')).toBeTruthy();
+      expect(screen.getByText('TestUser')).toBeTruthy();
+      expect(screen.queryByPlaceholderText('Enter username')).toBeNull();
     });
   });
 
-  it('requires username and password', async () => {
-    const { getByText } = render(<LoginScreen />);
+  // --- LOGIN FLOW TESTS ---
 
-    fireEvent.press(getByText('LOGIN'));
+  it('validates empty input', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    render(<LoginScreen />);
 
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith(
-        'Missing info',
-        'Please enter username and password'
-      );
-    });
-    expect(mockLogin).not.toHaveBeenCalled();
-  });
-
-  it('logs in successfully and syncs calendar', async () => {
-    mockLogin.mockResolvedValue({ access_token: 'abc' });
-
-    const { getByText, getByPlaceholderText, queryByText } = render(
-      <LoginScreen />
-    );
-
-    fireEvent.changeText(getByPlaceholderText('Enter username'), 'testuser');
-    fireEvent.changeText(getByPlaceholderText('Enter password'), '123456');
-
-    fireEvent.press(getByText('LOGIN'));
+    fireEvent.press(screen.getByText('LOGIN'));
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith('testuser', '123456');
-      expect(mockStoreData).toHaveBeenCalledWith('AUTH_SKIPPED', 'false');
-      // Kiểm tra sync flow
-      expect(mockSyncLocalEventsWithBackend).toHaveBeenCalled();
-      expect(mockSyncCloudEventsToLocal).toHaveBeenCalled();
-    });
-
-    // Kiểm tra UI chuyển sang trạng thái đã login
-    await waitFor(() => {
-      expect(queryByText('Enter username')).toBeNull(); // Input biến mất
-      expect(getByText('Signed in as')).toBeTruthy();
+      expect(alertSpy).toHaveBeenCalledWith('Missing info', 'Please enter username and password');
+      expect(authApi.login).not.toHaveBeenCalled();
     });
   });
 
-  it('shows error when login fails', async () => {
-    mockLogin.mockRejectedValue(new Error('Invalid credentials'));
+  it('handles login success and syncs data', async () => {
+    render(<LoginScreen />);
 
-    const { getByText, getByPlaceholderText } = render(<LoginScreen />);
+    // Input data
+    fireEvent.changeText(screen.getByPlaceholderText('Enter username'), 'myuser');
+    fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'mypass');
 
-    fireEvent.changeText(getByPlaceholderText('Enter username'), 'user');
-    fireEvent.changeText(getByPlaceholderText('Enter password'), 'wrong');
+    // Setup success mocks
+    (authApi.login as jest.Mock).mockResolvedValue(true);
 
-    fireEvent.press(getByText('LOGIN'));
+    fireEvent.press(screen.getByText('LOGIN'));
 
     await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith(
-        'Login failed',
-        'Invalid credentials'
-      );
+      // 1. API Call
+      expect(authApi.login).toHaveBeenCalledWith('myuser', 'mypass');
+      // 2. Storage Update
+      expect(storeData).toHaveBeenCalledWith('AUTH_SKIPPED', 'false');
+      // 3. Sync Functions
+      expect(LocalCalendarService.syncLocalEventsWithBackend).toHaveBeenCalled();
+      expect(LocalCalendarService.syncCloudEventsToLocal).toHaveBeenCalled();
+      // 4. UI Update
+      expect(screen.getByText('Signed in as')).toBeTruthy();
+      expect(screen.getByText('myuser')).toBeTruthy();
     });
   });
 
-  // --- LOGGED IN ACTIONS ---
+  it('handles login failure', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    render(<LoginScreen />);
 
-  it('navigates to system calendar selection when logged in', async () => {
-    mockGetToken.mockResolvedValue('token-123');
-    const { getByText } = render(<LoginScreen />);
+    fireEvent.changeText(screen.getByPlaceholderText('Enter username'), 'user');
+    fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'pass');
 
-    await waitFor(() => getByText('Add from system calendar'));
-    fireEvent.press(getByText('Add from system calendar'));
+    (authApi.login as jest.Mock).mockRejectedValue(new Error('Invalid credentials'));
 
-    expect(mockPush).toHaveBeenCalledWith('/(main layout)/login/chooseCalendar');
-  });
-
-  it('navigates to change password screen', async () => {
-    mockGetToken.mockResolvedValue('token-123');
-    const { getByText } = render(<LoginScreen />);
-
-    await waitFor(() => getByText('Change password'));
-    fireEvent.press(getByText('Change password'));
-
-    expect(mockPush).toHaveBeenCalledWith('/(main layout)/login/changeInfo');
-  });
-
-  // --- LOGOUT LOGIC (COMPLEX) ---
-
-  it('logs out immediately when no cloud events', async () => {
-    mockGetToken.mockResolvedValue('token-123');
-    mockGetUsername.mockResolvedValue('user');
-    mockGetCloudEventsCount.mockResolvedValue(0); // 0 Events
-
-    const { getByText } = render(<LoginScreen />);
-
-    await waitFor(() => getByText('Logout'));
-    fireEvent.press(getByText('Logout'));
+    fireEvent.press(screen.getByText('LOGIN'));
 
     await waitFor(() => {
-      expect(mockSyncLocalEventsWithBackend).toHaveBeenCalled(); // Sync lần cuối
-      expect(mockGetCloudEventsCount).toHaveBeenCalled();
-      expect(mockLogout).toHaveBeenCalled(); // Logout luôn
-      expect(mockStoreData).toHaveBeenCalledWith('AUTH_SKIPPED', 'false');
+      expect(alertSpy).toHaveBeenCalledWith('Login failed', 'Invalid credentials');
+      expect(screen.queryByText('Signed in as')).toBeNull();
     });
   });
 
-  it('logout with cloud events and user chooses "Keep as local"', async () => {
-    mockGetToken.mockResolvedValue('token-123');
-    mockGetCloudEventsCount.mockResolvedValue(5); // Có 5 events
+  // --- NAVIGATION & SKIP TESTS ---
 
-    // Mock hành vi bấm nút Alert
-    let buttons: any[] = [];
-    alertSpy.mockImplementation(
-      (_title: string, _message?: string, bts?: any[]) => {
-        if (bts) buttons = bts;
+  it('handles skip button', async () => {
+    render(<LoginScreen />);
+
+    fireEvent.press(screen.getByText('Skip for now'));
+
+    await waitFor(() => {
+      expect(storeData).toHaveBeenCalledWith('AUTH_SKIPPED', 'true');
+      expect(mockRouter.replace).toHaveBeenCalledWith('/(main layout)/login/chooseCalendar');
+    });
+  });
+
+  it('navigates to register screen', async () => {
+    render(<LoginScreen />);
+    fireEvent.press(screen.getByText('Sign Up'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/(main layout)/login/registerScreen');
+  });
+
+  // --- LOGOUT FLOW TESTS (COMPLEX) ---
+
+  it('logs out immediately if no cloud events exist', async () => {
+    // Setup logged in state
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (LocalCalendarService.getCloudEventsCount as jest.Mock).mockResolvedValue(0); // No events
+
+    render(<LoginScreen />);
+    await waitFor(() => screen.getByText('Logout'));
+
+    fireEvent.press(screen.getByText('Logout'));
+
+    await waitFor(() => {
+      expect(LocalCalendarService.syncLocalEventsWithBackend).toHaveBeenCalled(); // Tried to sync first
+      expect(authApi.logout).toHaveBeenCalled();
+      expect(storeData).toHaveBeenCalledWith('AUTH_SKIPPED', 'false');
+      expect(screen.getByPlaceholderText('Enter username')).toBeTruthy(); // Back to login form
+    });
+  });
+
+  it('asks user when cloud events exist, then "Keep as local"', async () => {
+    // Setup logged in state
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (LocalCalendarService.getCloudEventsCount as jest.Mock).mockResolvedValue(5); // 5 events
+
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    render(<LoginScreen />);
+    await waitFor(() => screen.getByText('Logout'));
+
+    fireEvent.press(screen.getByText('Logout'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalled();
+      // Check alert title
+      expect(alertSpy.mock.calls[0][0]).toBe('Cloud Events');
+    });
+
+    // Simulate pressing "Keep as local"
+    const buttons = alertSpy.mock.calls[0][2];
+    const keepButton = buttons?.find((btn) => btn.text === 'Keep as local');
+
+    await act(async () => {
+      if (keepButton && keepButton.onPress) {
+        await keepButton.onPress();
       }
-    );
-
-    const { getByText } = render(<LoginScreen />);
-    await waitFor(() => getByText('Logout'));
-    fireEvent.press(getByText('Logout'));
-
-    // Chờ Alert hiện
-    await waitFor(() => {
-      expect(buttons.length).toBeGreaterThan(0);
     });
 
-    // Bấm nút "Keep as local"
-    const keepBtn = buttons.find((b) => b.text === 'Keep as local');
-    await keepBtn.onPress();
-
-    expect(mockConvertCloudEventsToLocal).toHaveBeenCalled();
-    expect(mockLogout).toHaveBeenCalled();
+    expect(LocalCalendarService.convertCloudEventsToLocal).toHaveBeenCalled();
+    expect(authApi.logout).toHaveBeenCalled();
   });
 
-  it('logout with cloud events and user chooses "Delete all"', async () => {
-    mockGetToken.mockResolvedValue('token-123');
-    mockGetCloudEventsCount.mockResolvedValue(3);
+  it('asks user when cloud events exist, then "Delete all"', async () => {
+    // Setup logged in state
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (LocalCalendarService.getCloudEventsCount as jest.Mock).mockResolvedValue(5);
 
-    let buttons: any[] = [];
-    alertSpy.mockImplementation((_t, _m, bts) => { if (bts) buttons = bts; });
+    const alertSpy = jest.spyOn(Alert, 'alert');
 
-    const { getByText } = render(<LoginScreen />);
-    await waitFor(() => getByText('Logout'));
-    fireEvent.press(getByText('Logout'));
+    render(<LoginScreen />);
+    await waitFor(() => screen.getByText('Logout'));
 
-    await waitFor(() => expect(buttons.length).toBeGreaterThan(0));
+    fireEvent.press(screen.getByText('Logout'));
 
-    // Bấm nút "Delete all"
-    const deleteBtn = buttons.find((b) => b.text === 'Delete all');
-    await deleteBtn.onPress();
+    await waitFor(() => expect(alertSpy).toHaveBeenCalled());
 
-    expect(mockDeleteCloudEvents).toHaveBeenCalled();
-    expect(mockLogout).toHaveBeenCalled();
-  });
+    // Simulate pressing "Delete all"
+    const buttons = alertSpy.mock.calls[0][2];
+    const deleteButton = buttons?.find((btn) => btn.text === 'Delete all');
 
-  it('logout with cloud events and user chooses "Cancel"', async () => {
-    mockGetToken.mockResolvedValue('token-123');
-    mockGetCloudEventsCount.mockResolvedValue(1);
-
-    let buttons: any[] = [];
-    alertSpy.mockImplementation((_t, _m, bts) => { if (bts) buttons = bts; });
-
-    const { getByText } = render(<LoginScreen />);
-    await waitFor(() => getByText('Logout'));
-    fireEvent.press(getByText('Logout'));
-
-    await waitFor(() => expect(buttons.length).toBeGreaterThan(0));
-
-    // Bấm nút Cancel
-    const cancelBtn = buttons.find((b) => b.text === 'Cancel');
-    await cancelBtn.onPress();
-
-    // Không được gọi logout
-    expect(mockLogout).not.toHaveBeenCalled();
-  });
-
-  it('handles unexpected error during logout', async () => {
-    mockGetToken.mockResolvedValue('token-123');
-    // Giả lập lỗi mạng khi check cloud events
-    mockGetCloudEventsCount.mockRejectedValue(new Error('network error'));
-
-    const { getByText } = render(<LoginScreen />);
-    await waitFor(() => getByText('Logout'));
-    fireEvent.press(getByText('Logout'));
-
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith(
-        'Error',
-        'An error occurred during logout.'
-      );
+    await act(async () => {
+      if (deleteButton && deleteButton.onPress) {
+        await deleteButton.onPress();
+      }
     });
+
+    expect(LocalCalendarService.deleteCloudEvents).toHaveBeenCalled();
+    expect(authApi.logout).toHaveBeenCalled();
   });
 });

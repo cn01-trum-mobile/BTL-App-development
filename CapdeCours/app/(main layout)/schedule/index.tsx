@@ -112,7 +112,7 @@ export default function Schedule() {
             <Text style={styles.monthText}>{format(selectedDate, 'MMMM yyyy')}</Text>
           </View>
 
-          <TouchableOpacity onPress={handleAddEvent}>
+          <TouchableOpacity testID="add-btn" onPress={handleAddEvent}>
             <CalendarPlus size={26} color="#3E2C22" />
           </TouchableOpacity>
         </View>
