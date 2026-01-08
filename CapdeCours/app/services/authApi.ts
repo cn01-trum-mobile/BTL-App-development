@@ -43,4 +43,29 @@ export const authApi = {
     await storeData(TOKEN_KEY, '');
     await storeData(USERNAME_KEY, '');
   },
+
+  updateUser: async (username: string, name?: string, password?: string): Promise<void> => {
+    const token = await getData(TOKEN_KEY);
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    const body: { name?: string; password?: string } = {};
+    if (name) body.name = name;
+    if (password) body.password = password;
+
+    const res = await fetch(`${API_URL}/user/${username}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update user');
+    }
+  },
 };
