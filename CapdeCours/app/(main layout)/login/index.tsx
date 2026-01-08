@@ -215,9 +215,9 @@ export default function LoginScreen() {
             <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
               {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginButtonText}>LOGIN</Text>}
             </TouchableOpacity>
-             {/* Thêm vào dưới nút Skip hoặc Login */}
-             <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
-              <Text style={{ color: '#6B7280' }}>Don't have an account? </Text>
+            {/* Thêm vào dưới nút Skip hoặc Login */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
+              <Text style={{ color: '#6B7280' }}>{"Don't have an account?"} </Text>
               <TouchableOpacity onPress={() => router.push('/(main layout)/login/registerScreen' as any)}>
                 <Text style={{ color: '#AC3C00', fontWeight: 'bold' }}>Sign Up</Text>
               </TouchableOpacity>
