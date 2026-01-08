@@ -302,6 +302,7 @@ export default function SessionFolderScreen() {
                           {session.photos.map((photo, index) => (
                             <View key={`${photo.uri}-${index}`} className="w-[30%] m-[1.5%] aspect-square rounded-xl overflow-hidden">
                               <TouchableOpacity
+                                testID={`session-photo-${index}`}
                                 activeOpacity={0.8}
                                 onPress={() => {
                                   // Ẩn keyboard trước khi navigate

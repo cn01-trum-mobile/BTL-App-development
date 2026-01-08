@@ -99,6 +99,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
       <View className="flex-row justify-between items-center py-1">
         {isEditing ? (
           <TextInput
+            testID={field === 'note' ? 'note-input' : undefined}
             className={`text-neutral-800 border-b border-gray-300 flex-1 mr-2 px-0 ${isNote ? 'text-sm min-h-[100px] text-left' : 'font-bold text-base'}`}
             value={currentValue}
             onChangeText={setCurrentValue}
@@ -112,7 +113,11 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
         ) : (
           <Text className={`text-base text-neutral-800 ${isNote ? 'text-sm leading-5 mx-5 flex-1 mr-2' : 'font-semibold flex-1 mr-2'}`}>{currentValue}</Text>
         )}
-        <TouchableOpacity onPress={handleToggleEdit} className={isNote ? 'self-start' : ''}>
+        <TouchableOpacity
+          testID={field === 'note' ? 'note-edit-toggle' : undefined}
+          onPress={handleToggleEdit}
+          className={isNote ? 'self-start' : ''}
+        >
           {isEditing ? <Check size={18} color="#4CAF50" /> : <Edit size={16} color="#888" />}
         </TouchableOpacity>
       </View>
@@ -827,6 +832,7 @@ export default function DetailView() {
           <View className="absolute top-12 left-0 right-0 px-6 flex-row justify-between items-center z-10">
             {/* Back Button */}
             <TouchableOpacity 
+              testID="header-back-button"
               onPress={() => router.back()} 
               className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
             >
@@ -846,6 +852,7 @@ export default function DetailView() {
 
             {/* Delete Button */}
             <TouchableOpacity 
+              testID="header-delete-button"
               onPress={handleDelete} 
               className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
             >
