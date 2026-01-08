@@ -148,7 +148,9 @@ export default function LoginScreen() {
         <View style={styles.headerSection}>
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>
-            {isLoggedIn ? 'Your account is connected. You can manage cloud sync and calendar sources here.' : 'Sign in to sync your study schedule to the cloud.'}
+            {isLoggedIn
+              ? 'Your account is connected. You can manage cloud sync and calendar sources here.'
+              : 'Sign in to sync your study schedule to the cloud.'}
           </Text>
         </View>
 
@@ -187,36 +189,39 @@ export default function LoginScreen() {
           <View style={styles.form}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Username</Text>
-              <TextInput 
-                style={styles.input} 
-                placeholder="Enter username" 
+              <TextInput
+                style={styles.input}
+                placeholder="Enter username"
                 placeholderTextColor="#9CA3AF"
-                value={username} 
-                onChangeText={setUsername} 
-                autoCapitalize="none" 
-                autoCorrect={false} 
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Password</Text>
-              <TextInput 
-                style={styles.input} 
-                placeholder="Enter password" 
+              <TextInput
+                style={styles.input}
+                placeholder="Enter password"
                 placeholderTextColor="#9CA3AF"
-                value={password} 
-                onChangeText={setPassword} 
-                secureTextEntry 
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
               />
             </View>
 
             <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
-              {loading ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <Text style={styles.loginButtonText}>LOGIN</Text>
-              )}
+              {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginButtonText}>LOGIN</Text>}
             </TouchableOpacity>
+             {/* Thêm vào dưới nút Skip hoặc Login */}
+             <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
+              <Text style={{ color: '#6B7280' }}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => router.push('/(main layout)/login/registerScreen' as any)}>
+                <Text style={{ color: '#AC3C00', fontWeight: 'bold' }}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity style={styles.skipButton} onPress={handleSkip} disabled={loading} activeOpacity={0.7}>
               <Text style={styles.skipButtonText}>Skip for now</Text>
