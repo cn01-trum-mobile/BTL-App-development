@@ -1,7 +1,6 @@
 import { storeData, getData } from '@/utils/asyncStorage';
-import Constants from 'expo-constants';
 
-const API_URL = Constants.expoConfig?.extra?.apiUrl || 'https://b570db798a0f.ngrok-free.app';
+const API_URL = "http://35.222.243.209";
 const TOKEN_KEY = 'AUTH_TOKEN';
 const USERNAME_KEY = 'AUTH_USERNAME';
 
