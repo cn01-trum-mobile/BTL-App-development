@@ -2,7 +2,7 @@ require('dotenv').config();
 
 module.exports = {
   expo: {
-    name: 'CapdeCours',
+    name: 'CapDeCours',
     slug: 'capdecours',
     version: '1.0.0',
     orientation: 'portrait',
@@ -34,7 +34,7 @@ module.exports = {
       [
         'expo-splash-screen',
         {
-          image: './assets/images/logo.png',
+          image: './assets/images/splash-icon.png',
           imageWidth: 200,
           resizeMode: 'contain',
           backgroundColor: '#ffffff',
@@ -61,13 +61,16 @@ module.exports = {
     extra: {
       router: {},
       eas: {
-        projectId: 'ef10f305-4565-4542-b05c-f1c575b74917',
+        projectId: '145725e0-99a3-48bd-8a8e-e03da7d4cd16',
       },
       apiUrl: process.env.API_URL || 'https://b570db798a0f.ngrok-free.app',
     },
-    owner: 'lethanhbaotran',
+    owner: 'vck2004',
     runtimeVersion: {
       policy: 'appVersion',
+    },
+    updates: {
+      url: 'https://u.expo.dev/145725e0-99a3-48bd-8a8e-e03da7d4cd16',
     },
   },
 };

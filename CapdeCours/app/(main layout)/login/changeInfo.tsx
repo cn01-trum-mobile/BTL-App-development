@@ -107,7 +107,7 @@ export default function ChangeInfoScreen() {
               onChangeText={setPassword}
               secureTextEntry
             />
-            <Text style={styles.hintText}>Leave empty if you don't want to change password</Text>
+            <Text style={styles.hintText}>{"Leave empty if you don't want to change password"}</Text>
           </View>
 
           {password ? (
@@ -127,12 +127,7 @@ export default function ChangeInfoScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity
-            style={[styles.saveButton, loading && styles.saveButtonDisabled]}
-            onPress={handleSave}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={[styles.saveButton, loading && styles.saveButtonDisabled]} onPress={handleSave} disabled={loading} activeOpacity={0.8}>
             {loading ? (
               <ActivityIndicator color="#FFF" />
             ) : (
@@ -266,4 +261,3 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
   },
 });
-
