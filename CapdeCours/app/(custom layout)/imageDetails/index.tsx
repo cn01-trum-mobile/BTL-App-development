@@ -9,7 +9,7 @@ import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
 import FolderCard from '@/components/Folder';
 import { clearFolderCache, updateCacheAfterMove,  getPhotosFromCache, savePhotosToCache } from '@/utils/photoCache';
-import Swiper from 'react-native-swiper';
+import PagerView from 'react-native-pager-view';
 
 
 // --- INTERFACES ---
@@ -152,11 +152,12 @@ export default function DetailView() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [loadingMetadata, setLoadingMetadata] = useState(false);
+  const pagerRef = useRef<PagerView>(null);
 
   // Thêm useEffect này sau snapPoints
   useEffect(() => {
     if (viewMode === 'details') {
-      bottomSheetRef.current?.snapToIndex(1); // Hoặc 2 để cao hơn
+      bottomSheetRef.current?.snapToIndex(4); // Hoặc 2 để cao hơn
     } else if (viewMode === 'folder_selection' || viewMode === 'session_selection') {
       // Delay nhẹ để đảm bảo component đã render xong
       setTimeout(() => {
@@ -253,15 +254,23 @@ export default function DetailView() {
   };
 
   // 1. Sửa useEffect loadAllPhotosInFolder để không gọi setLoading không cần thiết
-  const loadAllPhotosInFolder = async () => {
+  const loadAllPhotosInFolder = async (folderName?: string, currentUri?: string) => {
     try {
       // XÓA phần này: if (photos.length === 0) { setLoading(true); }
       
+      // Sử dụng parameter hoặc fallback về data.folder/data.uri
+      const targetFolder = folderName || data.folder;
+      const targetUri = currentUri || data.uri;
+      
+      if (!targetFolder || !targetUri) {
+        return;
+      }
+      
       const photosDir = new Directory(Paths.document, 'photos');
-      const currentFolderDir = new Directory(photosDir, data.folder);
+      const currentFolderDir = new Directory(photosDir, targetFolder);
       
       if (!currentFolderDir.exists) {
-        setPhotos([data.uri]);
+        setPhotos([targetUri]);
         return;
       }
       
@@ -284,18 +293,21 @@ export default function DetailView() {
               const metadata = JSON.parse(content);
               return {
                 uri: file.uri,
+                fileName: file.name,
                 time: metadata.time || new Date().toISOString(),
                 session: metadata.session || ''
               };
             }
             return {
               uri: file.uri,
+              fileName: file.name,
               time: new Date().toISOString(),
               session: ''
             };
           } catch {
             return {
               uri: file.uri,
+              fileName: file.name,
               time: new Date().toISOString(),
               session: ''
             };
@@ -307,9 +319,24 @@ export default function DetailView() {
       
       const sortedUris = photosWithTime.map(photo => photo.uri);
       
-      const currentIndex = sortedUris.findIndex(uri => uri === data.uri);
-      setCurrentPhotoIndex(currentIndex >= 0 ? currentIndex : 0);
+      // Tìm ảnh hiện tại bằng cách so sánh URI hoặc tên file (để xử lý trường hợp đổi tên folder)
+      const currentImageFile = new File(targetUri);
+      const currentFileName = currentImageFile.name;
+      const currentIndex = sortedUris.findIndex(uri => {
+        const file = new File(uri);
+        // So sánh bằng URI hoặc tên file
+        return uri === targetUri || file.name === currentFileName;
+      });
+      const newIndex = currentIndex >= 0 ? currentIndex : 0;
+      setCurrentPhotoIndex(newIndex);
       setPhotos(sortedUris);
+      
+      // Cập nhật PagerView index nếu cần
+      if (pagerRef.current && newIndex !== currentPhotoIndex) {
+        setTimeout(() => {
+          pagerRef.current?.setPage(newIndex);
+        }, 100);
+      }
     } catch (error) {
       console.error('Error loading photos:', error);
       setPhotos([data.uri]);
@@ -369,9 +396,12 @@ export default function DetailView() {
   }, [loadingMetadata]); 
 
 
+  const isMovingRef = useRef(false);
+
   useEffect(() => {
-    if (data.folder && data.uri) {
-      loadAllPhotosInFolder();
+    if (data.folder && data.uri && !isMovingRef.current) {
+      // Truyền folder và uri hiện tại để tránh race condition
+      loadAllPhotosInFolder(data.folder, data.uri);
     }
   }, [data.folder, data.uri, viewMode]); 
 
@@ -436,15 +466,16 @@ export default function DetailView() {
 
   // C. Xử lý khi chọn 1 Session -> Thực hiện Move
   const handleSelectSession = async (session: string) => {
-    if (session === data.session) {
+    // Kiểm tra cả folder VÀ session để tránh báo lỗi sai
+    if (selectedTargetFolder === data.folder && session === data.session) {
       setViewMode('details');
       requestAnimationFrame(() => {
-        bottomSheetRef.current?.snapToIndex(1);
+        bottomSheetRef.current?.snapToIndex(4);
       });
 
       Alert.alert(
         'No Change',
-        'This image is already in this session.',
+        'This image is already in this folder and session.',
         [{ text: 'OK' }]
       );
       return;
@@ -499,6 +530,7 @@ export default function DetailView() {
       }
 
       setLoading(true);
+      isMovingRef.current = true;
 
       // 1. Đường dẫn cũ
       const oldImageFile = new File(data.uri);
@@ -556,15 +588,24 @@ export default function DetailView() {
       clearFolderCache(data.folder);
       clearFolderCache(targetFolder);
 
+      // 6. Gọi loadAllPhotosInFolder với folder và uri mới TRƯỚC KHI reset flag
+      // Để đảm bảo load đúng folder mới
+      const newUri = targetFolder !== data.folder ? newImageFile.uri : data.uri;
+      await loadAllPhotosInFolder(targetFolder, newUri);
+      
+      // 7. Reset flag sau khi đã load xong
+      isMovingRef.current = false;
+
       setShowSuccessPopup(true);
       setTimeout(() => setShowSuccessPopup(false), 2000);
       setViewMode('details');
       requestAnimationFrame(() => {
-        bottomSheetRef.current?.snapToIndex(3);
+        bottomSheetRef.current?.snapToIndex(4);
       });
     } catch (e) {
       Alert.alert('Error', 'Could not move image.');
       console.error(e);
+      isMovingRef.current = false;
     } finally {
       setLoading(false);
     }
@@ -704,49 +745,65 @@ export default function DetailView() {
 
         <View className="flex-1 bg-black">
           {photos.length > 0 ? (
-            <Swiper
-              index={currentPhotoIndex}
-              loop={false}
-              showsPagination={true}
-              paginationStyle={{ 
-                position: 'absolute',
-                bottom: 100 
-              }}
-              dotColor="rgba(255,255,255,0.3)"
-              activeDotColor="#FFFFFF"
-              removeClippedSubviews={false}
-              loadMinimal={false}
-              loadMinimalSize={1}
-              onIndexChanged={(index) => {
-                // Kiểm tra index hợp lệ
-                if (index >= 0 && index < photos.length) {
-                  setCurrentPhotoIndex(index);
-                  const newUri = photos[index];
-                  
-                  // Kiểm tra newUri hợp lệ và khác với uri hiện tại
-                  if (newUri && newUri !== data.uri) {
-                    loadPhotoMetadata(newUri);
+            <>
+              <PagerView
+                ref={pagerRef}
+                key={`pager-${data.folder}-${photos.length}`}
+                style={{ flex: 1 }}
+                initialPage={currentPhotoIndex}
+                onPageSelected={(e) => {
+                  const index = e.nativeEvent.position;
+                  if (index >= 0 && index < photos.length) {
+                    setCurrentPhotoIndex(index);
+                    const newUri = photos[index];
+                    
+                    if (newUri && newUri !== data.uri) {
+                      loadPhotoMetadata(newUri);
+                    }
                   }
-                }
-              }}
-              // Thêm các props quan trọng để canh chỉnh
-              style={{
-                flex: 1,
-                height: '100%'
-              }}
-              containerStyle={{
-                flex: 1
-              }}
-            >
-              {photos.map((photoUri, index) => (
+                }}
+                scrollEnabled={true}
+              >
+                {photos.map((photoUri, index) => (
+                  <View 
+                    key={`photo-${index}-${photoUri.split('/').pop()}`}
+                    style={{ flex: 1 }}
+                  >
+                    <PhotoItem uri={photoUri} />
+                  </View>
+                ))}
+              </PagerView>
+              
+              {/* Custom Pagination Dots */}
+              {photos.length > 1 && (
                 <View 
-                  key={`photo-${index}-${photoUri.split('/').pop()}`}
-                  style={{ flex: 1 }}
+                  style={{ 
+                    position: 'absolute',
+                    bottom: 100,
+                    left: 0,
+                    right: 0,
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 8
+                  }}
                 >
-                  <PhotoItem uri={photoUri} />
+                  {photos.map((_, index) => (
+                    <View
+                      key={`dot-${index}`}
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: index === currentPhotoIndex 
+                          ? '#FFFFFF' 
+                          : 'rgba(255,255,255,0.3)',
+                      }}
+                    />
+                  ))}
                 </View>
-              ))}
-            </Swiper>
+              )}
+            </>
           ) : (
             <View className="flex-1">
               <PhotoItem uri={data.uri} />
@@ -806,6 +863,11 @@ export default function DetailView() {
           keyboardBehavior="interactive"
           android_keyboardInputMode="adjustResize"
           enableOverDrag={false}
+          enablePanDownToClose={false}
+          enableContentPanningGesture={false}
+          enableHandlePanningGesture={true}
+          activeOffsetY={[-1, 1]}
+          failOffsetX={[-200, 200]}
         >
           <BottomSheetScrollView
             contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 100, flexGrow: 1 }}

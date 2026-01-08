@@ -3,7 +3,7 @@ import { SearchBar } from '@/components/SearchBar';
 import { Directory, Paths, File } from 'expo-file-system';
 import { RelativePathString, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, useRef } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity, Alert, TextInput, Animated, Modal } from 'react-native';
+import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity, Alert, TextInput, Animated, Modal, Keyboard } from 'react-native';
 import { getPhotosFromCache, PhotoItem,  savePhotosToCache, clearFolderCache } from '@/utils/photoCache';
 
 
@@ -25,10 +25,33 @@ export default function GalleryScreen() {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<string>('');
 
+  const [isUpdatingMetadata, setIsUpdatingMetadata] = useState(false);
+  const [metadataUpdateProgress, setMetadataUpdateProgress] = useState({ current: 0, total: 0 });
+
   const swipeAnimations = useRef<{[key: string]: Animated.Value}>({});
 
   const removeAccents = (str: string) => {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+
+  // Hàm kiểm tra text có chứa query không (tìm theo substring hoặc từng từ)
+  const matchesSearch = (text: string, query: string): boolean => {
+    if (!text || !query) return false;
+    const normalizedText = removeAccents(text);
+    const normalizedQuery = removeAccents(query);
+    
+    // Tìm substring (đã có sẵn)
+    if (normalizedText.includes(normalizedQuery)) {
+      return true;
+    }
+    
+    // Tìm theo từng từ riêng lẻ (tất cả từ trong query phải xuất hiện trong text)
+    const queryWords = normalizedQuery.trim().split(/\s+/).filter(w => w.length > 0);
+    if (queryWords.length > 1) {
+      return queryWords.every(word => normalizedText.includes(word));
+    }
+    
+    return false;
   };
 
   const checkFolderHasPhotos = async (folderName: string): Promise<boolean> => {
@@ -228,66 +251,97 @@ export default function GalleryScreen() {
         return;
       }
 
-      // 1. Move folder (đổi tên folder vật lý)
+      // 1. Move folder (đổi tên folder vật lý) - Nhanh
       await oldFolder.move(newFolder);
 
-      // 2. Đọc tất cả file JSON trong folder và cập nhật metadata
+      // 2. Đọc danh sách file JSON (chỉ để đếm, chưa cập nhật)
       const files = newFolder.list();
       const jsonFiles = files.filter((f): f is File => 
         f instanceof File && f.name.toLowerCase().endsWith('.json')
       );
 
-      console.log(`Updating metadata for ${jsonFiles.length} files...`);
-
-      await Promise.all(
-        jsonFiles.map(async (jsonFile) => {
-          try {
-            const content = await jsonFile.text();
-            const metadata = JSON.parse(content);
-            
-            // Cập nhật tên folder trong metadata
-            metadata.folder = newFolderName.trim();
-            
-            // Nếu subject giống với folder cũ, cập nhật luôn
-            if (metadata.subject === selectedFolder) {
-              metadata.subject = newFolderName.trim();
-            }
-            
-            await jsonFile.write(JSON.stringify(metadata, null, 2));
-            console.log(`Updated: ${jsonFile.name}`);
-          } catch (e) {
-            console.error(`Error updating ${jsonFile.name}:`, e);
-          }
-        })
-      );
+      const totalFiles = jsonFiles.length;
 
       // 3. Xoá cache của cả folder cũ và mới
       clearFolderCache(selectedFolder);
       clearFolderCache(newFolderName.trim());
 
-      // 4. Rebuild cache cho folder mới
+      // 4. Rebuild cache cho folder mới (cần thiết vì URI đã thay đổi)
+      // Tạm thời rebuild với metadata cũ, sẽ cập nhật sau
       const newPhotos = await rebuildCacheForFolder(newFolderName.trim());
       console.log(`Rebuilt cache: ${newPhotos.length} photos`);
 
-      // 5. Cập nhật UI state
+      // 5. Cập nhật UI state NGAY LẬP TỨC (không đợi metadata)
       setFolders(prev => prev.map(f => f === selectedFolder ? newFolderName.trim() : f));
       
-      // 6. Cập nhật allPhotos state (đổi folderName trong các photo)
-      setAllPhotos(prev => 
-        prev.map(photo => 
-          photo.folderName === selectedFolder 
-            ? { ...photo, folderName: newFolderName.trim() } 
-            : photo
-        )
-      );
+      setAllPhotos(prev => {
+        const newPhotosMap = new Map(
+          newPhotos.map(p => [p.name, { ...p, folderName: newFolderName.trim() }])
+        );
+        
+        return prev.map(photo => {
+          if (photo.folderName === selectedFolder) {
+            const updatedPhoto = newPhotosMap.get(photo.name);
+            return updatedPhoto || { ...photo, folderName: newFolderName.trim() };
+          }
+          return photo;
+        });
+      });
 
-      Alert.alert('Success', `Folder renamed to "${newFolderName.trim()}". Updated ${jsonFiles.length} photos.`);
+      // 6. Đóng modal ngay để user có thể tiếp tục sử dụng
+      setRenameModalVisible(false);
+
+      // 7. Cập nhật metadata trong BACKGROUND (batch processing)
+      if (totalFiles > 0) {
+        setIsUpdatingMetadata(true);
+        setMetadataUpdateProgress({ current: 0, total: totalFiles });
+
+        // Batch update: xử lý từng batch để không block UI
+        const BATCH_SIZE = 20; // Xử lý 20 files mỗi batch
+        let processed = 0;
+
+        for (let i = 0; i < jsonFiles.length; i += BATCH_SIZE) {
+          const batch = jsonFiles.slice(i, i + BATCH_SIZE);
+          
+          await Promise.all(
+            batch.map(async (jsonFile) => {
+              try {
+                const content = await jsonFile.text();
+                const metadata = JSON.parse(content);
+                
+                metadata.folder = newFolderName.trim();
+                if (metadata.subject === selectedFolder) {
+                  metadata.subject = newFolderName.trim();
+                }
+                
+                await jsonFile.write(JSON.stringify(metadata, null, 2));
+                processed++;
+                setMetadataUpdateProgress({ current: processed, total: totalFiles });
+              } catch (e) {
+                console.error(`Error updating ${jsonFile.name}:`, e);
+                processed++;
+              }
+            })
+          );
+
+          // Delay nhỏ giữa các batch để UI không bị lag
+          if (i + BATCH_SIZE < jsonFiles.length) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
+
+        setIsUpdatingMetadata(false);
+        setMetadataUpdateProgress({ current: 0, total: 0 });
+        console.log(`Metadata update completed: ${processed}/${totalFiles} files`);
+      }
+
+      Alert.alert('Success', `Folder renamed to "${newFolderName.trim()}". ${totalFiles > 0 ? `Updating ${totalFiles} photos in background...` : 'No photos to update.'}`);
     } catch (error) {
       console.error('Error renaming folder:', error);
       Alert.alert('Error', 'Failed to rename folder.');
-    } finally {
       setRenameModalVisible(false);
-      loadData(); // Có thể gọi để refresh toàn bộ
+      setIsUpdatingMetadata(false);
+      setMetadataUpdateProgress({ current: 0, total: 0 });
     }
   };
 
@@ -344,16 +398,16 @@ export default function GalleryScreen() {
   };
 
   const filteredFolders = folders.filter((folderName) => 
-    removeAccents(folderName).includes(removeAccents(searchQuery))
+    matchesSearch(folderName, searchQuery)
   );
 
   const filteredPhotos = allPhotos.filter((photo) => {
-    const query = removeAccents(searchQuery);
-    const noteMatch = photo.note ? removeAccents(photo.note).includes(query) : false;
-    const subjectMatch = photo.subject ? removeAccents(photo.subject).includes(query) : false;
-    const folderMatch = removeAccents(photo.folderName).includes(query);
+    const noteMatch = photo.note ? matchesSearch(photo.note, searchQuery) : false;
+    const subjectMatch = photo.subject ? matchesSearch(photo.subject, searchQuery) : false;
+    const folderMatch = matchesSearch(photo.folderName, searchQuery);
+    const nameMatch = photo.name ? matchesSearch(photo.name, searchQuery) : false;
     
-    return noteMatch || subjectMatch || folderMatch;
+    return noteMatch || subjectMatch || folderMatch || nameMatch;
   });
 
 
@@ -363,6 +417,31 @@ export default function GalleryScreen() {
 
   return (
     <View className="flex-1 px-5 pt-2"> 
+      {/* Progress indicator khi đang cập nhật metadata */}
+      {isUpdatingMetadata && metadataUpdateProgress.total > 0 && (
+        <View className="absolute top-16 left-5 right-5 z-50 bg-[#FFF8E3] rounded-lg p-3 shadow-lg border border-[#714A36]">
+          <View className="flex-row items-center gap-3">
+            <ActivityIndicator size="small" color="#714A36" />
+            <View className="flex-1">
+              <Text className="text-sm font-semibold text-[#714A36]">
+                Updating metadata...
+              </Text>
+              <Text className="text-xs text-gray-600 mt-1">
+                {metadataUpdateProgress.current} / {metadataUpdateProgress.total} photos
+              </Text>
+              <View className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                <View 
+                  className="h-full bg-[#714A36] rounded-full"
+                  style={{ 
+                    width: `${(metadataUpdateProgress.current / metadataUpdateProgress.total) * 100}%` 
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
       <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -504,6 +583,7 @@ export default function GalleryScreen() {
                                     activeOpacity={0.8}
                                     className="w-full h-full"
                                     onPress={() => {
+                                        Keyboard.dismiss();
                                         router.push({
                                             pathname: '/imageDetails' as RelativePathString,
                                             params: { uri: photo.uri } 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl, Keyboard } from 'react-native';
 import { useLocalSearchParams, router, RelativePathString, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronDown } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
@@ -184,20 +184,39 @@ export default function SessionFolderScreen() {
   }, [folderName, loadAndGroupPhotos]);
 
 
+  // Hàm kiểm tra text có chứa query không (tìm theo substring hoặc từng từ)
+  const matchesSearch = (text: string, query: string): boolean => {
+    if (!text || !query) return false;
+    const normalizedText = text.toLowerCase();
+    const normalizedQuery = query.toLowerCase();
+    
+    // Tìm substring (đã có sẵn)
+    if (normalizedText.includes(normalizedQuery)) {
+      return true;
+    }
+    
+    // Tìm theo từng từ riêng lẻ (tất cả từ trong query phải xuất hiện trong text)
+    const queryWords = normalizedQuery.trim().split(/\s+/).filter(w => w.length > 0);
+    if (queryWords.length > 1) {
+      return queryWords.every(word => normalizedText.includes(word));
+    }
+    
+    return false;
+  };
+
   const filteredSessions = useMemo(() => {
     if (!searchQuery) return sessionGroups;
     
-    const query = searchQuery.toLowerCase();
-    
     return sessionGroups.map((group) => {
-      if (group.title.toLowerCase().includes(query)) {
+      if (matchesSearch(group.title, searchQuery)) {
         return group;
       }
 
       const matchingPhotos = group.photos.filter(p => {
-        const noteMatch = p.note?.toLowerCase().includes(query);
-        const subjectMatch = p.subject?.toLowerCase().includes(query);
-        return noteMatch || subjectMatch;
+        const noteMatch = p.note ? matchesSearch(p.note, searchQuery) : false;
+        const subjectMatch = p.subject ? matchesSearch(p.subject, searchQuery) : false;
+        const nameMatch = p.name ? matchesSearch(p.name, searchQuery) : false;
+        return noteMatch || subjectMatch || nameMatch;
       });
 
       if (matchingPhotos.length > 0) {
@@ -285,6 +304,8 @@ export default function SessionFolderScreen() {
                               <TouchableOpacity
                                 activeOpacity={0.8}
                                 onPress={() => {
+                                  // Ẩn keyboard trước khi navigate
+                                  Keyboard.dismiss();
                                   // Chuyển hướng sang màn hình chi tiết
                                   router.push({
                                     pathname: '/imageDetails' as RelativePathString,
