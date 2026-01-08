@@ -1,187 +1,267 @@
 import React from 'react';
 import { render, waitFor, fireEvent } from '@testing-library/react-native';
 import Home from '../app/(main layout)/home/index';
-import { getData } from '@/utils/asyncStorage';
-import * as Calendar from 'expo-calendar';
+import { File } from 'expo-file-system';
+import { Image } from 'react-native';
 
-// --- SETUP & MOCKS ---
-const MOCK_DATE = new Date('2024-01-01T09:00:00.000Z');
-jest.useFakeTimers();
-jest.setSystemTime(MOCK_DATE);
+/* ---------------- GLOBAL MOCK STATE ---------------- */
+let mockEvents: any[] = [];
+let mockLoading = false;
+let mockFiles: any[] = [];
+let mockDirExists = true;
 
-// 1. Mock Utils
-jest.mock('@/utils/asyncStorage', () => ({ getData: jest.fn() }));
+/* ---------------- ROUTER ---------------- */
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
 
-// 2. Mock Calendar
-jest.mock('expo-calendar', () => ({ getEventsAsync: jest.fn() }));
-
-// 3. Mock Navigation (LINT FIX: Use jest.requireActual + Inline arrow function)
+/* ---------------- NAVIGATION FOCUS ---------------- */
 jest.mock('@react-navigation/native', () => {
-  const actualReact = jest.requireActual('react');
+  const React = jest.requireActual('react');
   return {
-    useFocusEffect: (callback: () => void) => {
-      actualReact.useEffect(() => {
-        callback();
-      }, []);
+    useFocusEffect: (cb: any) => {
+      React.useEffect(cb, [cb]);
     },
   };
 });
 
-// 4. Mock Icons (Use real Text for interaction)
-jest.mock('lucide-react-native', () => {
-  const { Text } = jest.requireActual('react-native');
+/* ---------------- CALENDAR HOOK ---------------- */
+const mockLoadEvents = jest.fn();
+jest.mock('@/app/services/useUnifiedCalendar', () => ({
+  useUnifiedCalendar: () => ({
+    events: mockEvents,
+    loading: mockLoading,
+    loadEvents: mockLoadEvents,
+  }),
+}));
+
+/* ---------------- FILE SYSTEM ---------------- */
+jest.mock('expo-file-system', () => {
+  class MockFile {
+    name: string;
+    uri: string;
+    constructor(name: string, uri: string) {
+      this.name = name;
+      this.uri = uri;
+    }
+  }
+
+  class MockDirectory {
+    exists: boolean;
+    constructor() {
+      this.exists = mockDirExists;
+    }
+    list() {
+      return mockFiles;
+    }
+  }
+
   return {
-    CalendarPlus: (props: any) => <Text {...props}>CalendarPlusIcon</Text>,
+    File: MockFile,
+    Directory: MockDirectory,
+    Paths: { document: 'file://docs' },
   };
 });
 
-// 5. Mock Date-Fns
+/* ---------------- ICON ---------------- */
+jest.mock('lucide-react-native', () => {
+  const { Text } = jest.requireActual('react-native');
+  return {
+    CalendarPlus: (props: any) => <Text {...props}>AddEventIcon</Text>,
+  };
+});
+
+/* ---------------- DATE FIX ---------------- */
 jest.mock('date-fns', () => {
   const actual = jest.requireActual('date-fns');
   return {
     ...actual,
-    format: (date: Date, fmt: string) => {
+    format: (date: Date | number, fmt: string) => {
       if (fmt === 'HH:mm') {
         const d = new Date(date);
-        const hours = d.getUTCHours().toString().padStart(2, '0');
-        const mins = d.getUTCMinutes().toString().padStart(2, '0');
-        return `${hours}.${mins}`;
+        return `${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`;
       }
       return actual.format(date, fmt);
     },
   };
 });
 
-describe('Home Screen', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    (getData as jest.Mock).mockResolvedValue(JSON.stringify(['cal-1']));
+/* ===================== TESTS ===================== */
 
-    // Default: 2 events (Crucial for 100% Function Coverage on .sort())
-    (Calendar.getEventsAsync as jest.Mock).mockResolvedValue([
+describe('Home Screen – 100% coverage', () => {
+  const NOW = new Date('2024-01-01T09:00:00.000Z');
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(NOW);
+    jest.clearAllMocks();
+
+    mockEvents = [
       {
         id: '1',
-        title: 'Morning Class',
+        title: 'Math',
         startDate: '2024-01-01T08:00:00.000Z',
         endDate: '2024-01-01T10:00:00.000Z',
-        location: 'Room 101',
+        location: 'Room A',
+        source: 'LOCAL',
       },
       {
         id: '2',
-        title: 'Afternoon Class',
+        title: 'Online Talk',
         startDate: '2024-01-01T13:00:00.000Z',
-        endDate: '2024-01-01T15:00:00.000Z',
-        location: 'Lab A',
+        endDate: '2024-01-01T14:00:00.000Z',
+        location: 'Zoom',
+        source: 'REMOTE',
       },
-    ]);
+    ];
+
+    mockLoading = false;
+    mockDirExists = true;
+
+    // @ts-ignore
+    mockFiles = [new File('a.jpg', 'uri/a.jpg'), new File('b.png', 'uri/b.png')];
   });
 
-  // --- TESTS ---
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
-  it('renders correctly with events sorted', async () => {
+  /* ---------- BASIC RENDER ---------- */
+  it('renders header and loads events', async () => {
     const { getByText } = render(<Home />);
+
+    expect(getByText('Welcome back!')).toBeTruthy();
+    expect(mockLoadEvents).toHaveBeenCalled();
+
     await waitFor(() => {
-      expect(getByText('Morning Class')).toBeTruthy();
-      expect(getByText('Afternoon Class')).toBeTruthy();
+      expect(getByText('Math')).toBeTruthy();
+      expect(getByText('Online Talk')).toBeTruthy();
     });
   });
 
-  it('renders images in bottom section', async () => {
-    const { UNSAFE_root } = render(<Home />);
+  /* ---------- EMPTY STATE ---------- */
+  it('shows empty schedule', async () => {
+    mockEvents = [];
+    const { getByText } = render(<Home />);
+
+    await waitFor(() => expect(getByText('No classes scheduled for today.')).toBeTruthy());
+  });
+
+  /* ---------- LOADING STATE ---------- */
+  it('shows loading indicator', () => {
+    mockLoading = true;
+    const { UNSAFE_getByType } = render(<Home />);
+    expect(UNSAFE_getByType(require('react-native').ActivityIndicator)).toBeTruthy();
+  });
+
+  /* ---------- DURATION FORMAT ---------- */
+  it('formats duration correctly', async () => {
+    const { getByText } = render(<Home />);
+
     await waitFor(() => {
-      expect(UNSAFE_root.findAllByType('Image').length).toBeGreaterThanOrEqual(2);
+      expect(getByText(/2h/)).toBeTruthy();
+      expect(getByText(/60m/)).toBeTruthy();
     });
   });
 
-  it('handles case where no calendar IDs are stored', async () => {
-    (getData as jest.Mock).mockResolvedValueOnce(null);
-    const { queryByText } = render(<Home />);
-    await waitFor(() => expect(queryByText('Morning Class')).toBeNull());
-  });
-
-  it('handles API errors gracefully', async () => {
-    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    (Calendar.getEventsAsync as jest.Mock).mockRejectedValueOnce(new Error('Fail'));
-    render(<Home />);
-    await waitFor(() => expect(spy).toHaveBeenCalled());
-    spy.mockRestore();
-  });
-
-  it('handles button press', async () => {
+  /* ---------- ADD EVENT ---------- */
+  it('navigates to add-event screen', () => {
     const { getByText } = render(<Home />);
-    await waitFor(() => getByText('Welcome back!'));
-
-    const btn = getByText('CalendarPlusIcon');
-    fireEvent.press(btn);
-    expect(btn).toBeTruthy();
+    fireEvent.press(getByText('AddEventIcon'));
+    expect(mockPush).toHaveBeenCalledWith('/(main layout)/schedule/addEvent');
   });
 
-  it('handles weekday selection', async () => {
+  /* ---------- WEEK DAY CHANGE ---------- */
+  it('reloads when selecting another day', () => {
     const { getByText } = render(<Home />);
-    await waitFor(() => getByText('Welcome back!'));
+    mockLoadEvents.mockClear();
+
     fireEvent.press(getByText('Tue'));
-    await waitFor(() => expect(getByText('Tue')).toBeTruthy());
+    expect(mockLoadEvents).toHaveBeenCalled();
   });
 
-  // --- BRANCH LOGIC TESTS ---
-
-  it('displays empty state when no events exist', async () => {
-    (Calendar.getEventsAsync as jest.Mock).mockResolvedValueOnce([]);
+  /* ---------- UNORGANIZED IMAGES ---------- */
+  it('shows banner with images and count', async () => {
     const { getByText } = render(<Home />);
+
     await waitFor(() => {
-      expect(getByText('No classes scheduled for today.')).toBeTruthy();
+      expect(getByText('Classify unorganized images now!')).toBeTruthy();
+      expect(getByText('View 2 unorganized images')).toBeTruthy();
     });
   });
 
-  it('handles events without location', async () => {
-    (Calendar.getEventsAsync as jest.Mock).mockResolvedValueOnce([
-      {
-        id: '99',
-        title: 'Mystery',
-        startDate: '2024-01-01T10:00:00.000Z',
-        endDate: '2024-01-01T11:00:00.000Z',
-        location: null,
-      },
-    ]);
-
-    const { getByText, queryByText } = render(<Home />);
-    await waitFor(() => {
-      expect(getByText('Mystery')).toBeTruthy();
-      expect(queryByText(/📍/)).toBeNull();
-    });
-  });
-
-  it('formats short durations (< 1h) correctly', async () => {
-    (Calendar.getEventsAsync as jest.Mock).mockResolvedValueOnce([
-      {
-        id: 'short',
-        title: 'Shorty',
-        startDate: '2024-01-01T10:00:00.000Z',
-        endDate: '2024-01-01T10:45:00.000Z',
-        location: 'A',
-      },
-    ]);
+  it('filters non-image files', async () => {
+    // @ts-ignore
+    mockFiles = [new File('doc.pdf', 'uri/doc.pdf'), new File('photo.jpg', 'uri/photo.jpg')];
 
     const { getByText } = render(<Home />);
-    await waitFor(() => {
-      expect(getByText(/45m/)).toBeTruthy();
+    await waitFor(() => expect(getByText('View 1 unorganized images')).toBeTruthy());
+  });
+
+  it('navigates to image details on image press', async () => {
+    const { UNSAFE_getAllByType } = render(<Home />);
+
+    // Image is nested inside TouchableOpacity → press parent
+    const images = UNSAFE_getAllByType(Image);
+    expect(images.length).toBeGreaterThan(0);
+
+    fireEvent.press(images[0].parent as any);
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/imageDetails',
+      params: { uri: 'uri/a.jpg' },
     });
   });
 
-  it('formats complex durations (> 1h with mins) correctly', async () => {
-    (Calendar.getEventsAsync as jest.Mock).mockResolvedValueOnce([
-      {
-        id: 'complex',
-        title: 'Long',
-        startDate: '2024-01-01T10:00:00.000Z',
-        endDate: '2024-01-01T11:30:00.000Z',
-        location: 'B',
-      },
-    ]);
-
+  it('navigates to unorganized folder', async () => {
     const { getByText } = render(<Home />);
-    await waitFor(() => {
-      expect(getByText(/1h30/)).toBeTruthy();
+    await waitFor(() => getByText('View 2 unorganized images'));
+
+    fireEvent.press(getByText('View 2 unorganized images'));
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/sessionFolders/[folderName]',
+      params: { folderName: 'Unorganized' },
     });
   });
+
+  /* ---------- ORGANIZED STATE ---------- */
+  it('shows organized message when empty', async () => {
+    mockFiles = [];
+    const { getByText } = render(<Home />);
+
+    await waitFor(() => {
+      expect(getByText('All images are organized!')).toBeTruthy();
+      expect(getByText('Great job!')).toBeTruthy();
+    });
+  });
+
+  it('handles missing directory', async () => {
+    mockDirExists = false;
+    const { getByText } = render(<Home />);
+
+    await waitFor(() => expect(getByText('All images are organized!')).toBeTruthy());
+  });
+});
+it('handles filesystem error when loading unorganized images', async () => {
+  // Force Directory.list() to throw
+  mockDirExists = true;
+
+  mockFiles = {
+    get length() {
+      throw new Error('FS crash');
+    },
+  } as any;
+
+  const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+  const { getByText } = render(<Home />);
+
+  await waitFor(() => {
+    expect(getByText('All images are organized!')).toBeTruthy();
+  });
+
+  expect(spy).toHaveBeenCalledWith('Error loading unorganized images:', expect.any(Error));
+
+  spy.mockRestore();
 });

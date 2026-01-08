@@ -1,13 +1,16 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert} from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gorhom/bottom-sheet';
-import { Trash2, Edit, Check, Plus, ChevronLeft, X, Layers } from 'lucide-react-native';
+import { Trash2, Edit, Check, Plus, ChevronLeft, X, Folder } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
 import FolderCard from '@/components/Folder';
+import { clearFolderCache, updateCacheAfterMove,  getPhotosFromCache, savePhotosToCache } from '@/utils/photoCache';
+import PagerView from 'react-native-pager-view';
+
 
 // --- INTERFACES ---
 interface EditableFieldProps {
@@ -17,6 +20,10 @@ interface EditableFieldProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
   onEditTrigger: (field: 'name' | 'note' | 'folder') => void;
   onSave: (field: 'name' | 'note', newValue: string) => void;
+}
+
+interface PhotoItemProps {
+  uri: string;
 }
 
 // --- Component Handle ---
@@ -70,9 +77,16 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
       <View className="mb-6 mx-3">
         <Text className="text-[#6E4A3F] mb-1 font-bold">{label}</Text>
         <View className="flex-row justify-between items-center py-1">
-          <Text className="text-base font-semibold text-neutral-800 flex-1 mr-2">{currentValue}</Text>
-          <TouchableOpacity onPress={() => onEditTrigger('folder')}>
-            <Edit size={16} color="#888" />
+          <Text className="text-base font-semibold text-neutral-800 flex-1 mr-2">
+             {/* Hiển thị Folder hiện tại */}
+             {currentValue} 
+          </Text>
+          
+          {/* NÚT BÚT CHÌ ĐỂ SỬA */}
+          <TouchableOpacity 
+             onPress={() => onEditTrigger('folder')}
+          >
+            <Edit size={16} color="#888" /> 
           </TouchableOpacity>
         </View>
       </View>
@@ -85,6 +99,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
       <View className="flex-row justify-between items-center py-1">
         {isEditing ? (
           <TextInput
+            testID={field === 'note' ? 'note-input' : undefined}
             className={`text-neutral-800 border-b border-gray-300 flex-1 mr-2 px-0 ${isNote ? 'text-sm min-h-[100px] text-left' : 'font-bold text-base'}`}
             value={currentValue}
             onChangeText={setCurrentValue}
@@ -98,13 +113,35 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
         ) : (
           <Text className={`text-base text-neutral-800 ${isNote ? 'text-sm leading-5 mx-5 flex-1 mr-2' : 'font-semibold flex-1 mr-2'}`}>{currentValue}</Text>
         )}
-        <TouchableOpacity onPress={handleToggleEdit} className={isNote ? 'self-start' : ''}>
+        <TouchableOpacity
+          testID={field === 'note' ? 'note-edit-toggle' : undefined}
+          onPress={handleToggleEdit}
+          className={isNote ? 'self-start' : ''}
+        >
           {isEditing ? <Check size={18} color="#4CAF50" /> : <Edit size={16} color="#888" />}
         </TouchableOpacity>
       </View>
     </View>
   );
 };
+
+
+const PhotoItem = React.memo(({ uri }: PhotoItemProps) => (
+  <View className="flex-1 bg-black justify-center items-center overflow-hidden">
+    <Image 
+      source={{ uri }} 
+      className="w-full h-full"
+      resizeMode="cover"
+      fadeDuration={0}
+      progressiveRenderingEnabled={true}
+    />
+  </View>
+), (prevProps, nextProps) => {
+  return prevProps.uri === nextProps.uri;
+});
+
+// Đặt tên cho component để dễ debug
+PhotoItem.displayName = 'PhotoItem';
 
 // --- MAIN SCREEN ---
 export default function DetailView() {
@@ -114,9 +151,26 @@ export default function DetailView() {
   const snapPoints = useMemo(() => ['11%', '25%', '50%', '90%'], []);
 
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // VIEW MODES: 'details' -> 'folder_selection' -> 'session_selection'
   const [viewMode, setViewMode] = useState<'details' | 'folder_selection' | 'session_selection'>('details');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [loadingMetadata, setLoadingMetadata] = useState(false);
+  const pagerRef = useRef<PagerView>(null);
+
+  // Thêm useEffect này sau snapPoints
+  useEffect(() => {
+    if (viewMode === 'details') {
+      bottomSheetRef.current?.snapToIndex(4); // Hoặc 2 để cao hơn
+    } else if (viewMode === 'folder_selection' || viewMode === 'session_selection') {
+      // Delay nhẹ để đảm bảo component đã render xong
+      setTimeout(() => {
+        bottomSheetRef.current?.snapToIndex(4); // Luôn mở full khi chọn folder/session
+      }, 50);
+    }
+  }, [viewMode]);
 
   // Data Logic
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
@@ -128,6 +182,7 @@ export default function DetailView() {
   // Input Create New
   const [newItemName, setNewItemName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   useEffect(() => {
     setIsCreating(false); // Tắt ô nhập liệu
@@ -204,6 +259,159 @@ export default function DetailView() {
     }
   };
 
+  // 1. Sửa useEffect loadAllPhotosInFolder để không gọi setLoading không cần thiết
+  const loadAllPhotosInFolder = async (folderName?: string, currentUri?: string) => {
+    try {
+      // XÓA phần này: if (photos.length === 0) { setLoading(true); }
+      
+      // Sử dụng parameter hoặc fallback về data.folder/data.uri
+      const targetFolder = folderName || data.folder;
+      const targetUri = currentUri || data.uri;
+      
+      if (!targetFolder || !targetUri) {
+        return;
+      }
+      
+      const photosDir = new Directory(Paths.document, 'photos');
+      const currentFolderDir = new Directory(photosDir, targetFolder);
+      
+      if (!currentFolderDir.exists) {
+        setPhotos([targetUri]);
+        return;
+      }
+      
+      const files = currentFolderDir.list();
+      const imageFiles = files.filter((f): f is File => 
+        f instanceof File && 
+        (f.name.toLowerCase().endsWith('.jpg') || 
+        f.name.toLowerCase().endsWith('.jpeg') ||
+        f.name.toLowerCase().endsWith('.png'))
+      );
+      
+      const photosWithTime = await Promise.all(
+        imageFiles.map(async (file) => {
+          try {
+            const jsonPath = file.uri.replace(/\.(jpg|jpeg|png)$/i, '.json');
+            const jsonFile = new File(jsonPath);
+            
+            if (jsonFile.exists) {
+              const content = await jsonFile.text();
+              const metadata = JSON.parse(content);
+              return {
+                uri: file.uri,
+                fileName: file.name,
+                time: metadata.time || new Date().toISOString(),
+                session: metadata.session || ''
+              };
+            }
+            return {
+              uri: file.uri,
+              fileName: file.name,
+              time: new Date().toISOString(),
+              session: ''
+            };
+          } catch {
+            return {
+              uri: file.uri,
+              fileName: file.name,
+              time: new Date().toISOString(),
+              session: ''
+            };
+          }
+        })
+      );
+      
+      photosWithTime.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+      
+      const sortedUris = photosWithTime.map(photo => photo.uri);
+      
+      // Tìm ảnh hiện tại bằng cách so sánh URI hoặc tên file (để xử lý trường hợp đổi tên folder)
+      const currentImageFile = new File(targetUri);
+      const currentFileName = currentImageFile.name;
+      const currentIndex = sortedUris.findIndex(uri => {
+        const file = new File(uri);
+        // So sánh bằng URI hoặc tên file
+        return uri === targetUri || file.name === currentFileName;
+      });
+      const newIndex = currentIndex >= 0 ? currentIndex : 0;
+      setCurrentPhotoIndex(newIndex);
+      setPhotos(sortedUris);
+      
+      // Cập nhật PagerView index nếu cần
+      if (pagerRef.current && newIndex !== currentPhotoIndex) {
+        setTimeout(() => {
+          pagerRef.current?.setPage(newIndex);
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error loading photos:', error);
+      setPhotos([data.uri]);
+    }
+  };
+
+  const loadPhotoMetadata = useCallback(async (photoUri: string) => {
+    try {
+      if (!loadingMetadata) {
+        setLoadingMetadata(true);
+      }
+      
+      const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
+      const jsonFile = new File(jsonPath);
+      
+      let metadata = { name: '', folder: '', time: '', note: '', session: '' };
+      
+      if (jsonFile.exists) {
+        const content = await jsonFile.text();
+        metadata = JSON.parse(content);
+      }
+      
+      let displayTime = metadata.time;
+      try {
+        displayTime = format(new Date(metadata.time), 'h:mma EEEE, MMM do yyyy');
+      } catch {}
+      
+      setData(prev => {
+        const newData = {
+          name: metadata.name || 'Untitled',
+          folder: metadata.folder || 'Unorganized',
+          time: displayTime,
+          note: metadata.note || '',
+          uri: photoUri,
+          jsonUri: jsonPath,
+          rawTime: metadata.time,
+          session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
+        };
+        
+        if (
+          prev.name === newData.name &&
+          prev.folder === newData.folder &&
+          prev.time === newData.time &&
+          prev.note === newData.note &&
+          prev.uri === newData.uri &&
+          prev.session === newData.session
+        ) {
+          return prev;
+        }
+        return newData;
+      });
+    } catch (error) {
+      console.error('Error loading photo metadata:', error);
+    } finally {
+      setLoadingMetadata(false);
+    }
+  }, [loadingMetadata]); 
+
+
+  const isMovingRef = useRef(false);
+
+  useEffect(() => {
+    if (data.folder && data.uri && !isMovingRef.current) {
+      // Truyền folder và uri hiện tại để tránh race condition
+      loadAllPhotosInFolder(data.folder, data.uri);
+    }
+  }, [data.folder, data.uri, viewMode]); 
+
+
   // --- LOGIC 2: LOAD SESSIONS CỦA MỘT FOLDER ---
   const loadSessionsForFolder = async (folderName: string) => {
     try {
@@ -246,8 +454,8 @@ export default function DetailView() {
   // A. Trigger mở màn hình chọn Folder
   const handleEditTrigger = async (field: 'name' | 'note' | 'folder') => {
     if (field === 'folder') {
-      await loadFolders();
-      setViewMode('folder_selection');
+      await loadFolders(); 
+      setViewMode('folder_selection'); 
       bottomSheetRef.current?.snapToIndex(4);
     }
   };
@@ -264,6 +472,20 @@ export default function DetailView() {
 
   // C. Xử lý khi chọn 1 Session -> Thực hiện Move
   const handleSelectSession = async (session: string) => {
+    // Kiểm tra cả folder VÀ session để tránh báo lỗi sai
+    if (selectedTargetFolder === data.folder && session === data.session) {
+      setViewMode('details');
+      requestAnimationFrame(() => {
+        bottomSheetRef.current?.snapToIndex(4);
+      });
+
+      Alert.alert(
+        'No Change',
+        'This image is already in this folder and session.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     await finalizeMove(selectedTargetFolder, session);
   };
 
@@ -301,10 +523,20 @@ export default function DetailView() {
       // Kiểm tra xem có thay đổi gì không
       if (targetFolder === data.folder && targetSession === data.session) {
         setViewMode('details');
+        requestAnimationFrame(() => {
+          bottomSheetRef.current?.snapToIndex(3);
+        });
+
+        Alert.alert(
+        'No Change',
+        'The image is already in the selected folder and session.',
+        [{ text: 'OK' }]
+      );
         return;
       }
 
       setLoading(true);
+      isMovingRef.current = true;
 
       // 1. Đường dẫn cũ
       const oldImageFile = new File(data.uri);
@@ -348,11 +580,38 @@ export default function DetailView() {
         jsonUri: targetFolder !== data.folder ? newJsonFile.uri : prev.jsonUri,
       }));
 
-      Alert.alert('Thành công', `Đã chuyển sang ${targetFolder} / ${targetSession}`);
+      await updateCacheAfterMove(
+        data.folder,
+        targetFolder,
+        data.uri,
+        {
+          uri: targetFolder !== data.folder ? newImageFile.uri : data.uri,
+          session: targetSession,
+          subject: targetFolder
+        }
+      );
+
+      clearFolderCache(data.folder);
+      clearFolderCache(targetFolder);
+
+      // 6. Gọi loadAllPhotosInFolder với folder và uri mới TRƯỚC KHI reset flag
+      // Để đảm bảo load đúng folder mới
+      const newUri = targetFolder !== data.folder ? newImageFile.uri : data.uri;
+      await loadAllPhotosInFolder(targetFolder, newUri);
+      
+      // 7. Reset flag sau khi đã load xong
+      isMovingRef.current = false;
+
+      setShowSuccessPopup(true);
+      setTimeout(() => setShowSuccessPopup(false), 2000);
       setViewMode('details');
+      requestAnimationFrame(() => {
+        bottomSheetRef.current?.snapToIndex(4);
+      });
     } catch (e) {
-      Alert.alert('Lỗi', 'Không thể chuyển.');
+      Alert.alert('Error', 'Could not move image.');
       console.error(e);
+      isMovingRef.current = false;
     } finally {
       setLoading(false);
     }
@@ -370,16 +629,39 @@ export default function DetailView() {
       }
       const newMetadata = { ...existingContent, [field]: newValue };
       await jsonFile.write(JSON.stringify(newMetadata, null, 2));
+      
+      // === CẬP NHẬT CACHE ===
+      if (field === 'note') {
+        try {
+          const currentCache = await getPhotosFromCache(data.folder);
+          if (currentCache) {
+            const updatedCache = currentCache.map(photo => {
+              if (photo.uri === data.uri) {
+                return {
+                  ...photo,
+                  note: newValue
+                };
+              }
+              return photo;
+            });
+            
+            await savePhotosToCache(data.folder, updatedCache);
+            console.log('Cache updated after note edit');
+          }
+        } catch (cacheError) {
+          console.error('Error updating cache:', cacheError);
+        }
+      }
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể lưu thay đổi.');
-      console.error(error)
+      Alert.alert('Error', 'Could not save changes.');
+      console.error(error);
     }
   };
 
   const handleDelete = () => {
     Alert.alert(
-      'Xóa ảnh', // Tiêu đề
-      'Bạn có chắc chắn muốn xóa ảnh này không? Hành động này không thể hoàn tác.', // Nội dung
+      'Image Deletion',
+      'Do you want to delete this image? This action cannot be undone.',
       [
         {
           text: 'Hủy',
@@ -387,10 +669,10 @@ export default function DetailView() {
         },
         {
           text: 'Xóa',
-          style: 'destructive', // Làm nút này màu đỏ (trên iOS)
+          style: 'destructive',
           onPress: async () => {
             try {
-              setLoading(true);
+              setIsDeleting(true);
 
               // 1. Xóa file ảnh
               const imageFile = new File(data.uri);
@@ -404,12 +686,32 @@ export default function DetailView() {
                 await jsonFile.delete();
               }
 
-              // 3. Quay về màn hình trước
-              router.back();
+              // 3. Cập nhật danh sách ảnh
+              const newPhotos = photos.filter(uri => uri !== data.uri);
+              setPhotos(newPhotos);
+              
+              // 4. Nếu còn ảnh, chuyển đến ảnh trước đó
+              if (newPhotos.length > 0) {
+                const newIndex = Math.max(0, currentPhotoIndex - 1);
+                setCurrentPhotoIndex(newIndex);
+                // Cập nhật PagerView ngay lập tức
+                if (pagerRef.current) {
+                  pagerRef.current.setPage(newIndex);
+                }
+                await loadPhotoMetadata(newPhotos[newIndex]);
+              } else {
+                // Nếu không còn ảnh nào, quay về
+                clearFolderCache(data.folder);
+                router.back();
+                return;
+              }
+              
+              clearFolderCache(data.folder);
+              setIsDeleting(false);
             } catch (error) {
               console.error('Lỗi xóa file:', error);
-              Alert.alert('Lỗi', 'Không thể xóa ảnh, vui lòng thử lại.');
-              setLoading(false);
+              Alert.alert('Error', 'Could not delete the image.');
+              setIsDeleting(false);
             }
           },
         },
@@ -432,18 +734,144 @@ export default function DetailView() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View className="flex-1 bg-gray-100">
-        <View className="h-full relative">
+
+        {loadingMetadata && (
+          <View className="absolute inset-0 justify-center items-center bg-black/20">
+            <ActivityIndicator size="small" color="#6E4A3F" />
+          </View>
+        )}
+
+        {isDeleting && (
+          <View className="absolute inset-0 justify-center items-center bg-black/20 z-50">
+            <ActivityIndicator size="small" color="#6E4A3F" />
+          </View>
+        )}
+
+        
+        {/* <View className="h-full relative">
           <Image source={{ uri: data.uri }} className="w-full h-full" resizeMode="cover" />
-          {/* Back Button */}
+          
           <TouchableOpacity onPress={() => router.back()} className="absolute top-12 left-4 p-2 bg-black/20 rounded-full">
             <Text className="text-white text-xl font-bold">←</Text>
           </TouchableOpacity>
 
-          {/* Delete Button*/}
+          
           <TouchableOpacity onPress={handleDelete} className="absolute top-12 right-4 p-2 bg-black/20 rounded-full">
             <Trash2 size={22} color="white" />
           </TouchableOpacity>
+        </View> */}
+
+        <View className="flex-1 bg-black">
+          {photos.length > 0 ? (
+            <>
+              <PagerView
+                ref={pagerRef}
+                key={`pager-${data.folder}-${photos.length}`}
+                style={{ flex: 1 }}
+                initialPage={currentPhotoIndex}
+                onPageSelected={(e) => {
+                  const index = e.nativeEvent.position;
+                  if (index >= 0 && index < photos.length) {
+                    setCurrentPhotoIndex(index);
+                    const newUri = photos[index];
+                    
+                    if (newUri && newUri !== data.uri) {
+                      loadPhotoMetadata(newUri);
+                    }
+                  }
+                }}
+                scrollEnabled={true}
+              >
+                {photos.map((photoUri, index) => (
+                  <View 
+                    key={`photo-${index}-${photoUri.split('/').pop()}`}
+                    style={{ flex: 1 }}
+                  >
+                    <PhotoItem uri={photoUri} />
+                  </View>
+                ))}
+              </PagerView>
+              
+              {/* Custom Pagination Dots */}
+              {photos.length > 1 && (
+                <View 
+                  style={{ 
+                    position: 'absolute',
+                    bottom: 100,
+                    left: 0,
+                    right: 0,
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 8
+                  }}
+                >
+                  {photos.map((_, index) => (
+                    <View
+                      key={`dot-${index}`}
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: index === currentPhotoIndex 
+                          ? '#FFFFFF' 
+                          : 'rgba(255,255,255,0.3)',
+                      }}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
+          ) : (
+            <View className="flex-1">
+              <PhotoItem uri={data.uri} />
+            </View>
+          )}
+
+          {/* Header với các button */}
+          <View className="absolute top-12 left-0 right-0 px-6 flex-row justify-between items-center z-10">
+            {/* Back Button */}
+            <TouchableOpacity 
+              testID="header-back-button"
+              onPress={() => router.back()} 
+              className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
+            >
+              <ChevronLeft size={22} color="white" />
+            </TouchableOpacity>
+
+            {/* Counter hiển thị số thứ tự ảnh */}
+            {photos.length > 1 && (
+              <View className="absolute left-0 right-0 items-center">
+                <View className="bg-black/50 px-4 py-2 rounded-full">
+                  <Text className="text-white text-sm font-semibold">
+                    {currentPhotoIndex + 1}/{photos.length}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Delete Button */}
+            <TouchableOpacity 
+              testID="header-delete-button"
+              onPress={handleDelete} 
+              className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
+            >
+              <Trash2 size={20} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {showSuccessPopup && (
+          <View className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center z-50 pointer-events-none">
+            <View className="bg-[#8B4513] px-6 py-4 rounded-2xl items-center shadow-lg mx-4">
+              <View className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center mb-2">
+                <Check size={24} color="white" />
+              </View>
+              <Text className="text-white text-center font-bold">Stored at folder</Text>
+              <Text className="text-white text-center font-bold">&quot;{data.session}&quot;</Text>
+            </View>
+          </View>
+        )}
 
         <BottomSheet
           ref={bottomSheetRef}
@@ -455,9 +883,14 @@ export default function DetailView() {
           keyboardBehavior="interactive"
           android_keyboardInputMode="adjustResize"
           enableOverDrag={false}
+          enablePanDownToClose={false}
+          enableContentPanningGesture={false}
+          enableHandlePanningGesture={true}
+          activeOffsetY={[-1, 1]}
+          failOffsetX={[-200, 200]}
         >
           <BottomSheetScrollView
-            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 100 }}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 100, flexGrow: 1 }}
             onScrollBeginDrag={handleScrollBeginDrag}
           >
             {/* 1. VIEW MODE: DETAILS */}
@@ -503,188 +936,189 @@ export default function DetailView() {
 
             {/* 2. VIEW MODE: FOLDER SELECTION */}
             {viewMode === 'folder_selection' && (
-              <View>
+              <View className="flex-1">
+                {/* Header */}
                 <View className="flex-row items-center gap-4 mb-5">
-                  <TouchableOpacity
-                    onPress={() => setViewMode('details')}
+                  <TouchableOpacity onPress={() => setViewMode('details')} 
                     className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
                   >
                     <ChevronLeft size={24} color="#35383E" />
                   </TouchableOpacity>
                   <View className="flex-1">
-                    <Text className="text-sm font-sen font-bold uppercase text-[#35383E]">CHOOSE FOLDER</Text>
+                    <Text className="text-sm font-sen font-bold uppercase text-[#35383E] tracking-widest">CHOOSE FOLDER</Text>
                     <View className="w-full h-1 bg-[#8D7162]/50 rounded-full mt-1"></View>
                   </View>
                 </View>
 
-                {!isCreating ? (
-                  <TouchableOpacity
-                    onPress={() => setIsCreating(true)}
-                    className="flex-row items-center justify-center p-4 mb-4 bg-[#E0E0E0] rounded-2xl border-2 border-dashed border-gray-400"
-                  >
-                    <Plus size={20} color="#555" />
-                    <Text className="font-bold text-gray-600 ml-2">CREATE NEW FOLDER</Text>
-                  </TouchableOpacity>
-                ) : (
-                  // <View className="mb-4 flex-row items-center gap-2">
-                  //   <TextInput
-                  //     value={newItemName}
-                  //     onChangeText={setNewItemName}
-                  //     placeholder="Folder Name..."
-                  //     autoFocus
-                  //     className="flex-1 bg-white p-3 rounded-xl border border-[#6E4A3F] text-[#6E4A3F]"
-                  //   />
-                  //   <TouchableOpacity onPress={handleCreateFolder} className="bg-[#6E4A3F] p-3 rounded-xl">
-                  //     <Check size={24} color="white" />
-                  //   </TouchableOpacity>
-                  //   <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-red-400 p-3 rounded-xl">
-                  //     <X size={24} color="white" />
-                  //   </TouchableOpacity>
-                  // </View>
-
+                {isCreating && (
                   <View className="mb-4">
-                    {/* Container màu trắng, bo tròn giống hình */}
-                    <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm">
-                      {/* Input Field */}
+                    <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm border border-gray-200">
                       <TextInput
                         value={newItemName}
                         onChangeText={setNewItemName}
                         placeholder="FOLDER NAME..."
                         placeholderTextColor="#9CA3AF"
                         autoFocus
-                        // Quan trọng: Bấm Enter trên bàn phím để Lưu
                         onSubmitEditing={handleCreateFolder}
                         returnKeyType="done"
-                        // Style text đậm, màu tối giống hình
                         className="flex-1 text-[#35383E] font-bold text-base mr-2"
+                        autoCapitalize="none" 
+                        autoCorrect={false}    
                       />
-
-                      {/* Nút X (Hủy / Tắt) - Style tròn màu xám */}
-                      <TouchableOpacity
-                        onPress={() => {
-                          setIsCreating(false);
-                        }}
-                        className="bg-[#E0E0E0] p-1.5 rounded-full"
-                      >
+                      <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1.5 rounded-full">
                         <X size={18} color="#757575" strokeWidth={3} />
                       </TouchableOpacity>
                     </View>
                   </View>
                 )}
 
-                {/* Folder List */}
-                <View className="gap-y-1">
+                <View className="gap-y-1"> 
                   {availableFolders.map((folder) => {
-                    const isSelected = data.folder === folder;
-
+                    const currentFolderRaw = data.folder || '';
+                    const isCurrent = currentFolderRaw.trim().toLowerCase() === folder.trim().toLowerCase();
+                    const backgroundColor = isCurrent ? '#6E4A3F' : '#FFD9B3';
+                    const textColor = isCurrent ? 'text-white' : 'text-[#35383E]';
+                    
                     return (
+                      // <TouchableOpacity
+                      //   key={folder}
+                      //   onPress={() => handleSelectFolder(folder)}
+                      //   activeOpacity={0.9}
+                      //   className="flex-row items-center gap-4 p-4 rounded-[22.5px] h-[65px] mb-3"
+                      //   style={{ backgroundColor }}
+                      // >
+                      //   {/* Icon thư mục thay vì bút chì */}
+                      //   <View 
+                      //     className={`flex items-center justify-center w-[35px] h-[35px] rounded-[11.25px] ${
+                      //       isCurrent ? 'bg-white/20' : 'bg-black/10'
+                      //     }`}
+                      //   >
+                      //     <Folder size={16} color={isCurrent ? 'white' : '#35383E'} />
+                      //   </View>
+
+                      //   {/* Title - không uppercase */}
+                      //   <Text className={`flex-1 font-sen font-bold text-sm ${textColor}`}>
+                      //     {folder}
+                      //   </Text>
+
+                      //   {/* Icon check nếu là folder hiện tại */}
+                      //   {isCurrent && (
+                      //     <View className="bg-white/20 rounded-full p-1">
+                      //       <Check size={16} color="white" />
+                      //     </View>
+                      //   )}
+                      // </TouchableOpacity>
                       <FolderCard
                         key={folder}
                         title={folder}
-                        // // 1. Truyền trạng thái active để đổi màu nền
-                        // isActive={isSelected}
-                        // 2. Override hành động bấm
                         onPress={() => handleSelectFolder(folder)}
-                        // // 3. Custom Icon bên trái (Folder thay vì Pencil)
-                        // icon={
-                        //   <Folder
-                        //     size={20}
-                        //     color={isSelected ? 'white' : '#6E4A3F'}
-                        //     fill={isSelected ? 'white' : 'transparent'} // Fill nếu được chọn cho đẹp giống hình cũ
-                        //   />
-                        // }
-                        // 4. Custom Icon bên phải (Chevron xoay ngược)
-                        rightIcon={<ChevronLeft size={20} color={isSelected ? 'white' : '#6E4A3F'} style={{ transform: [{ rotate: '180deg' }] }} />}
+                        isActive={isCurrent}
+                        icon={<Folder size={16} color={isCurrent ? 'white' : '#35383E'} />}
+                        rightIcon={isCurrent ? (
+                          <View className="bg-white/20 rounded-full p-1">
+                            <Check size={16} color="white" />
+                          </View>
+                        ) : undefined}
+                        showActions={false} 
                       />
                     );
                   })}
                 </View>
+
+                {/* Nút Floating Add Folder */}
+                {!isCreating && (
+                  <View className="mt-auto items-end pt-4">
+                    <TouchableOpacity 
+                      onPress={() => setIsCreating(true)}
+                      className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
+                    >
+                      <Plus size={28} color="#8B4513" strokeWidth={3} />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
 
             {/* 3. VIEW MODE: SESSION SELECTION */}
             {viewMode === 'session_selection' && (
-              <View>
+              <View className="flex-1">
                 <View className="flex-row items-center gap-4 mb-5">
-                  <TouchableOpacity
-                    onPress={() => setViewMode('folder_selection')}
-                    className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
-                  >
-                    <ChevronLeft size={24} color="#35383E" />
+                  <TouchableOpacity onPress={() => setViewMode('folder_selection')} className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center">
+                  <ChevronLeft size={24} color="#35383E" />
                   </TouchableOpacity>
-                  <View className="flex-1">
+                  <View>
                     <Text className="text-sm font-sen font-bold text-[#35383E]">CHOOSE SESSION</Text>
-                    <Text className="text-xs text-gray-500">in folder {selectedTargetFolder}</Text>
-                    <View className="w-full h-1 bg-[#8D7162]/50 rounded-full mt-1"></View>
+                    <View className="h-[2px] w-full bg-[#6E4A3F] mt-1 opacity-20" />
                   </View>
                 </View>
 
-                {/* Create Session Input */}
-                {!isCreating ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setIsCreating(true);
-                      setNewItemName(format(new Date(), 'yyyy-MM-dd')); // Mặc định là ngày hôm nay
-                    }}
-                    className="flex-row items-center justify-center p-4 mb-4 bg-[#E0E0E0] rounded-2xl border-2 border-dashed border-gray-400"
-                  >
-                    <Plus size={20} color="#555" />
-                    <Text className="font-bold text-gray-600 ml-2">CREATE NEW SESSION</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View className="mb-4">
-                    {/* Container màu trắng, bo tròn giống hình */}
-                    <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm">
-                      {/* Input Field */}
-                      <TextInput
-                        value={newItemName}
-                        onChangeText={setNewItemName}
-                        placeholder="SESSION NAME..."
-                        placeholderTextColor="#9CA3AF"
-                        autoFocus
-                        // Quan trọng: Bấm Enter trên bàn phím để Lưu
-                        onSubmitEditing={handleCreateSession}
-                        returnKeyType="done"
-                        // Style text đậm, màu tối giống hình
-                        className="flex-1 text-[#35383E] font-bold text-base mr-2"
-                      />
-
-                      {/* Nút X (Hủy / Tắt) - Style tròn màu xám */}
-                      <TouchableOpacity
-                        onPress={() => {
-                          setNewItemName('');
-                          setIsCreating(false);
-                        }}
-                        className="bg-[#E0E0E0] p-1.5 rounded-full"
-                      >
-                        <X size={18} color="#757575" strokeWidth={3} />
-                      </TouchableOpacity>
+                {isCreating && (
+                    <View className="mb-4">
+                        <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm border border-gray-200">
+                            <TextInput
+                                value={newItemName}
+                                onChangeText={setNewItemName}
+                                placeholder="SESSION NAME..."
+                                placeholderTextColor="#9CA3AF"
+                                autoFocus
+                                onSubmitEditing={handleCreateSession}
+                                returnKeyType="done"
+                                className="flex-1 text-[#35383E] font-bold text-base mr-2 uppercase"
+                            />
+                            <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1 rounded-full">
+                                <X size={16} color="#757575" strokeWidth={3} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                  </View>
                 )}
 
-                <Text className="mb-2 font-bold text-gray-500 text-xs uppercase">Existing Sessions</Text>
-
                 <View className="gap-y-3">
-                  {availableSessions.length === 0 && <Text className="text-center text-gray-400 italic py-4">No existing sessions found in this folder.</Text>}
-                  {availableSessions.map((session) => (
-                    <TouchableOpacity
-                      key={session}
-                      onPress={() => handleSelectSession(session)} // Chọn xong là Move luôn
-                      className={`w-full flex-row items-center px-4 py-3 rounded-[22.5px] ${data.session === session && data.folder === selectedTargetFolder ? 'bg-[#6E4A3F]' : 'bg-[#FFD9B3]'}`}
-                    >
-                      <View className={`p-2 rounded-full mr-3 ${data.session === session ? 'bg-white/20' : 'bg-white/50'}`}>
-                        <Layers size={20} color={data.session === session ? 'white' : '#6E4A3F'} />
-                      </View>
-                      <Text className={`font-bold text-base ${data.session === session ? 'text-white' : 'text-[#6E4A3F]'}`}>{session}</Text>
-                      {data.session === session && data.folder === selectedTargetFolder && (
-                        <View className="ml-auto">
+                  {availableSessions.map((session) => {
+                    const isCurrent = session === data.session && selectedTargetFolder === data.folder;
+                    
+                    return (
+                      <TouchableOpacity
+                        key={session}
+                        onPress={() => handleSelectSession(session)}
+                        className={`w-full flex-row items-center justify-between px-5 py-4 rounded-[20px] ${
+                          isCurrent ? 'bg-[#6E4A3F]' : 'bg-[#FFE4C4]'
+                        }`}
+                      >
+                        <Text className={`font-bold text-sm uppercase ${
+                          isCurrent ? 'text-white' : 'text-[#4B3B36]'
+                        }`}>
+                          {session}
+                          {isCurrent && ' (Current)'}
+                        </Text>
+                        {isCurrent ? (
                           <Check size={20} color="white" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  ))}
+                        ) : (
+                          <ChevronLeft size={20} color="#4B3B36" style={{ transform: [{ rotate: '180deg' }] }} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {availableSessions.length === 0 && (
+                      <Text className="text-gray-400 text-center italic mt-4">No sessions found in this folder.</Text>
+                  )}
                 </View>
+
+                {/* Floating Add Session */}
+                 {!isCreating && (
+                     <View className="mt-auto items-end pt-4">
+                        <TouchableOpacity 
+                            onPress={() => {
+                              if (!isCreating) {
+                                setNewItemName(format(new Date(), 'yyyy-MM-dd'));
+                              }
+                              setIsCreating(true);
+                            }}
+                            className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
+                        >
+                            <Plus size={28} color="#8B4513" strokeWidth={3} />
+                        </TouchableOpacity>
+                     </View>
+                 )}
               </View>
             )}
           </BottomSheetScrollView>

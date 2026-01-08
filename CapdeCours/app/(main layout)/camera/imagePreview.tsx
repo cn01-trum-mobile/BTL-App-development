@@ -1,5 +1,5 @@
 import { useBottomAction } from '@/context/NavActionContext';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router} from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -28,6 +28,9 @@ import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
 // ---------------------------------
 
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
+import { PhotoItem, addPhotoToCache } from '@/utils/photoCache';
+
+
 
 export default function ImagePreviewScreen() {
   const { uri, rotation } = useLocalSearchParams<{ uri: string; rotation: string }>();
@@ -51,7 +54,7 @@ export default function ImagePreviewScreen() {
     return name.trim();
   }, []);
 
-  const savePhoto = useCallback(() => {
+  const savePhoto = useCallback(async () => {
     if (!uri) return;
     const now = new Date();
     const timestamp = now.getTime(); // Lấy timestamp (ms) để đảm bảo duy nhất
@@ -110,6 +113,17 @@ export default function ImagePreviewScreen() {
 
       // Ghi file JSON
       jsonFile.write(JSON.stringify(metadata, null, 2));
+
+      const newPhotoItem: PhotoItem = {
+        uri: destFile.uri, 
+        name: fileName,
+        timestamp: timestamp,
+        note: note,          
+        subject: folder, 
+        session: session,  
+      };
+      
+      await addPhotoToCache(folder, newPhotoItem);
 
       // UI Feedback
       setAction({

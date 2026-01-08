@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { User, LogOut, Key, Calendar } from 'lucide-react-native';
 import { authApi } from '@/app/services/authApi';
 import { storeData } from '@/utils/asyncStorage';
 import {
@@ -138,53 +139,98 @@ export default function LoginScreen() {
   };
 
   const handleChangePassword = () => {
-    // TODO: Điều hướng sang màn đổi mật khẩu riêng nếu bạn tạo route, tạm thời chỉ alert
-    Alert.alert('Change password', 'Implement change password screen / API here.');
+    router.push('/(main layout)/login/changeInfo');
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome back</Text>
-      <Text style={styles.subtitle}>
-        {isLoggedIn ? 'Your account is connected. You can manage cloud sync and calendar sources here.' : 'Sign in to sync your study schedule to the cloud.'}
-      </Text>
-
-      {isLoggedIn ? (
-        <View style={styles.form}>
-          <Text style={styles.profileLabel}>Signed in as</Text>
-          <Text style={styles.profileName}>{currentUser || 'User'}</Text>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={handleOpenSystemCalendarConnect}>
-            <Text style={styles.primaryButtonText}>Add from system calendar</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleChangePassword}>
-            <Text style={styles.secondaryButtonText}>Change password</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Logout</Text>
-          </TouchableOpacity>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.content}>
+        <View style={styles.headerSection}>
+          <Text style={styles.title}>Welcome back</Text>
+          <Text style={styles.subtitle}>
+            {isLoggedIn
+              ? 'Your account is connected. You can manage cloud sync and calendar sources here.'
+              : 'Sign in to sync your study schedule to the cloud.'}
+          </Text>
         </View>
-      ) : (
-        <View style={styles.form}>
-          <Text style={styles.label}>Username</Text>
-          <TextInput style={styles.input} placeholder="Enter username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
 
-          <Text style={[styles.label, { marginTop: 16 }]}>Password</Text>
-          <TextInput style={styles.input} placeholder="Enter password" value={password} onChangeText={setPassword} secureTextEntry />
+        {isLoggedIn ? (
+          <View style={styles.form}>
+            <View style={styles.profileSection}>
+              <View style={styles.profileIconContainer}>
+                <User size={24} color="#AC3C00" />
+              </View>
+              <Text style={styles.profileLabel}>Signed in as</Text>
+              <Text style={styles.profileName}>{currentUser || 'User'}</Text>
+            </View>
 
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>LOGIN</Text>}
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryButton} onPress={handleOpenSystemCalendarConnect} activeOpacity={0.8}>
+              <Calendar size={20} color="#FFF" />
+              <Text style={styles.primaryButtonText}>Add from system calendar</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.skipButton} onPress={handleSkip} disabled={loading}>
-            <Text style={styles.skipButtonText}>Skip for now</Text>
-            <Text style={styles.skipHint}>You can still use local & system calendar without an account.</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleChangePassword} activeOpacity={0.8}>
+              <Key size={18} color="#374151" />
+              <Text style={styles.secondaryButtonText}>Change password</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#B91C1C" />
+              ) : (
+                <>
+                  <LogOut size={18} color="#B91C1C" />
+                  <Text style={styles.logoutButtonText}>Logout</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Username</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter username"
+                placeholderTextColor="#9CA3AF"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter password"
+                placeholderTextColor="#9CA3AF"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </View>
+
+            <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+              {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginButtonText}>LOGIN</Text>}
+            </TouchableOpacity>
+            {/* Thêm vào dưới nút Skip hoặc Login */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
+              <Text style={{ color: '#6B7280' }}>{"Don't have an account?"} </Text>
+              <TouchableOpacity onPress={() => router.push('/(main layout)/login/registerScreen' as any)}>
+                <Text style={{ color: '#AC3C00', fontWeight: 'bold' }}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.skipButton} onPress={handleSkip} disabled={loading} activeOpacity={0.7}>
+              <Text style={styles.skipButtonText}>Skip for now</Text>
+              <Text style={styles.skipHint}>You can still use local & system calendar without an account.</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -192,9 +238,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFF8E3',
-    paddingHorizontal: 24,
-    paddingTop: 80,
-    fontFamily: 'Poppins-Regular',
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 100,
+  },
+  headerSection: {
+    marginBottom: 32,
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
@@ -208,17 +260,34 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Regular',
     color: '#646982',
     textAlign: 'center',
-    marginBottom: 32,
+    lineHeight: 20,
+    paddingHorizontal: 8,
   },
   form: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 20,
+    padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 3,
+    elevation: 4,
+  },
+  profileSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  profileIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FFE8BB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   profileLabel: {
     fontSize: 13,
@@ -227,55 +296,68 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   profileName: {
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'Poppins-Bold',
     color: '#3E2C22',
+  },
+  inputGroup: {
     marginBottom: 20,
   },
   label: {
     fontSize: 14,
     fontFamily: 'Poppins-Bold',
     color: '#3E2C22',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     fontSize: 14,
     fontFamily: 'Poppins-Regular',
     backgroundColor: '#FFF',
+    color: '#3E2C22',
   },
   loginButton: {
-    marginTop: 24,
+    marginTop: 8,
     backgroundColor: '#AC3C00',
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#AC3C00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    minHeight: 52,
   },
   loginButtonText: {
     color: '#FFF',
     fontSize: 16,
     fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.5,
   },
   skipButton: {
-    marginTop: 16,
+    marginTop: 20,
     alignItems: 'center',
+    paddingVertical: 8,
   },
   skipButtonText: {
     color: '#6B7280',
     fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
+    marginBottom: 4,
   },
   skipHint: {
-    marginTop: 4,
     fontSize: 12,
     fontFamily: 'Poppins-Regular',
     color: '#9CA3AF',
     textAlign: 'center',
+    lineHeight: 16,
+    paddingHorizontal: 16,
   },
   primaryButton: {
     marginTop: 8,
@@ -283,6 +365,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    shadowColor: '#AC3C00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   primaryButtonText: {
     color: '#FFF',
@@ -292,28 +382,35 @@ const styles = StyleSheet.create({
   secondaryButton: {
     marginTop: 12,
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderWidth: 1,
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    borderWidth: 1.5,
     borderColor: '#D1D5DB',
+    backgroundColor: '#FFF',
   },
   secondaryButtonText: {
     color: '#374151',
     fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
   },
   logoutButton: {
     marginTop: 16,
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
   },
   logoutButtonText: {
     color: '#B91C1C',
     fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
   },
 });

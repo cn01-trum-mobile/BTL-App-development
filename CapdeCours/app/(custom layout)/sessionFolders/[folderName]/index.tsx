@@ -1,31 +1,53 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, router, RelativePathString } from 'expo-router';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl, Keyboard } from 'react-native';
+import { useLocalSearchParams, router, RelativePathString, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronDown } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { SearchBar } from '@/components/SearchBar';
 import { Directory, File, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
-
-interface PhotoItem {
-  uri: string;
-  timestamp: number;
-}
+import { getPhotosFromCache, savePhotosToCache, PhotoItem, clearFolderCache } from '@/utils/photoCache';
 
 interface SessionGroup {
-  id: string; // Session ID (VD: "2025-12-24") lấy từ JSON
+  id: string; 
   title: string;
   photos: PhotoItem[];
 }
+
+const formatSessionDisplay = (sessionKey: string, index: number): string => {
+  if (!sessionKey || sessionKey === 'unknown' || sessionKey === '') {
+    return `Session ${index + 1} - Unknown date`;
+  }
+  
+  let dateObj: Date;
+  dateObj = new Date(sessionKey);
+  
+  if (isNaN(dateObj.getTime())) {
+    dateObj = new Date(sessionKey + 'T00:00:00Z');
+  }
+  
+  if (!isNaN(dateObj.getTime())) {
+    try {
+      const day = dateObj.getDate().toString().padStart(2, '0');
+      const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+      const year = dateObj.getFullYear();
+      return `Session ${index + 1} - ${day}/${month}/${year}`;
+    } catch {
+      return `Session ${index + 1} - ${sessionKey}`;
+    }
+  }
+  return `Session ${index + 1} - ${sessionKey}`;
+};
 
 export default function SessionFolderScreen() {
   const { folderName } = useLocalSearchParams<{ folderName: string }>();
   const [sessionGroups, setSessionGroups] = useState<SessionGroup[]>([]);
   const [expandedSession, setExpandedSession] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Helper để đọc JSON (chuyển ra ngoài hoặc để trong đều được)
-  const readMetadata = async (jsonFile: File): Promise<{ session: string; time: string } | null> => {
+  const readMetadata = async (jsonFile: File): Promise<{ session: string; time: string; note?: string; subject?: string } | null> => {
     try {
       const content = await jsonFile.text();
       return JSON.parse(content);
@@ -35,98 +57,177 @@ export default function SessionFolderScreen() {
     }
   };
 
-  const loadAndGroupPhotos = useCallback(async () => {
+  const loadAndGroupPhotos = useCallback(async (forceReload = false) => {
     try {
       if (!folderName) return;
-      const photosDir = new Directory(Paths.document, 'photos');
-      const subjectDir = new Directory(photosDir, folderName);
-
-      if (!subjectDir.exists) {
-        setSessionGroups([]);
-        return;
+      setLoading(true);
+      let photosData: PhotoItem[] | null = null;
+      
+      if (!forceReload) {
+        photosData = await getPhotosFromCache(folderName);
       }
+      if (!photosData || photosData.length === 0) {
+        console.log('Cache miss or refresh -> Scanning files...');
+        
+        const photosDir = new Directory(Paths.document, 'photos');
+        const subjectDir = new Directory(photosDir, folderName);
 
-      // 1. Lấy danh sách tất cả file
-      const allFiles = subjectDir.list();
+        if (!subjectDir.exists) {
+          setSessionGroups([]);
+          setLoading(false);
+          return;
+        }
 
-      // 2. Lọc ra các file JSON (Metadata)
-      const jsonFiles = allFiles.filter((f): f is File => f instanceof File && f.name.endsWith('.json'));
-      const processedPhotos: { session: string; timestamp: number; uri: string }[] = [];
+        const allFiles = subjectDir.list();
+        const jsonFiles = allFiles.filter((f): f is File => f instanceof File && f.name.endsWith('.json'));
+        
+        const scannedPhotos: PhotoItem[] = [];
+        await Promise.all(
+          jsonFiles.map(async (jsonFile) => {
+            const imageUri = jsonFile.uri.replace('.json', '.jpg');
+            const imageFile = new File(imageUri);
 
-      // 3. Đọc nội dung từng file JSON (Dùng Promise.all để đọc song song cho nhanh)
-      await Promise.all(
-        jsonFiles.map(async (jsonFile) => {
-          // Tìm file ảnh tương ứng (Giả sử tên file json và jpg giống nhau chỉ khác đuôi)
-          // VD: IMG_123.json -> IMG_123.jpg
-          const imageUri = jsonFile.uri.replace('.json', '.jpg');
-          const imageFile = new File(imageUri);
-
-          // Chỉ xử lý nếu file ảnh thực sự tồn tại
-          if (imageFile.exists) {
-            const metadata = await readMetadata(jsonFile);
-            if (metadata && metadata.session) {
-              processedPhotos.push({
-                uri: imageUri,
-                session: metadata.session, // Lấy SESSION từ JSON
-                timestamp: new Date(metadata.time).getTime(), // Lấy TIME từ JSON
-              });
+            if (imageFile.exists) {
+              const metadata = await readMetadata(jsonFile);
+              if (metadata) {
+                scannedPhotos.push({
+                  uri: imageUri,
+                  name: imageFile.name,
+                  timestamp: new Date(metadata.time).getTime(),
+                  note: metadata.note || '',      
+                  subject: metadata.subject || folderName,
+                  session: metadata.session || format(new Date(metadata.time), 'yyyy-MM-dd'),
+                });
+              }
             }
-          }
-        })
-      );
+          })
+        );
 
-      // 4. Group ảnh theo Session (Dữ liệu lấy từ JSON)
+        photosData = scannedPhotos;
+        await savePhotosToCache(folderName, photosData);
+      } else {
+        console.log('Loaded from Cache');
+      }
       const groups: Record<string, PhotoItem[]> = {};
 
-      processedPhotos.forEach((item) => {
-        const sessionKey = item.session; // "2025-12-24"
+      photosData.forEach((photo) => {
+        const sessionKey = photo.session || 'unknown';
 
         if (!groups[sessionKey]) {
           groups[sessionKey] = [];
         }
-        groups[sessionKey].push({
-          uri: item.uri,
-          timestamp: item.timestamp,
-        });
+        groups[sessionKey].push(photo);
       });
 
-      // 5. Sắp xếp Session từ CŨ -> MỚI để đánh số
+      // Sắp xếp Session từ CŨ -> MỚI để đánh số
       const sortedDatesAsc = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
-      // 6. Tạo mảng hiển thị
+      // Tạo mảng hiển thị
       const result: SessionGroup[] = sortedDatesAsc.map((dateKey, index) => {
-        const sessionNumber = index + 1;
-        let dateDisplay = dateKey;
-        try {
-          dateDisplay = format(new Date(dateKey), 'dd/MM/yyyy');
-        } catch {}
-
         // Sort ảnh trong session (Mới nhất lên đầu)
         groups[dateKey].sort((a, b) => b.timestamp - a.timestamp);
 
         return {
           id: dateKey,
-          title: `Session ${sessionNumber} - ${dateDisplay}`,
+          title: formatSessionDisplay(dateKey, index),
           photos: groups[dateKey],
         };
       });
 
-      // 7. Đảo ngược để Session mới nhất lên đầu UI
+      // Đảo ngược để Session mới nhất lên đầu UI
       result.reverse();
 
       setSessionGroups(result);
-      if (result.length > 0) setExpandedSession([result[0].id]);
+      if (result.length > 0 && !searchQuery) {
+        setExpandedSession([result[0].id]);
+      }
     } catch (error) {
-      console.error('Error loading photos: ', error);
+      console.error('Error loading photos:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [folderName]);
+  }, [folderName]); // CHỈ CÓ folderName, không có searchQuery
 
   useEffect(() => {
     loadAndGroupPhotos();
-  }, [loadAndGroupPhotos]);
+  }, [folderName]); // CHỈ phụ thuộc vào folderName
 
+  // Effect riêng cho search - tự động mở tất cả session khi tìm kiếm
+  useEffect(() => {
+    if (searchQuery) {
+      const sessionIds = sessionGroups.map(s => s.id);
+      setExpandedSession(sessionIds);
+    } else {
+      // Khi không search, mở session đầu tiên
+      if (sessionGroups.length > 0) {
+        setExpandedSession([sessionGroups[0].id]);
+      }
+    }
+  }, [searchQuery]); // RIÊNG BIỆT với loadAndGroupPhotos
+
+  // useFocusEffect chỉ để cleanup hoặc xử lý đặc biệt
+  useFocusEffect(
+    useCallback(() => {
+      // Không gọi loadAndGroupPhotos ở đây để tránh trùng lặp
+      return () => {
+        // Cleanup nếu cần
+      };
+    }, [folderName])
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    clearFolderCache(folderName!).then(() => {
+      loadAndGroupPhotos(true);
+    });
+  }, [folderName, loadAndGroupPhotos]);
+
+
+  // Hàm kiểm tra text có chứa query không (tìm theo substring hoặc từng từ)
+  const matchesSearch = (text: string, query: string): boolean => {
+    if (!text || !query) return false;
+    const normalizedText = text.toLowerCase();
+    const normalizedQuery = query.toLowerCase();
+    
+    // Tìm substring (đã có sẵn)
+    if (normalizedText.includes(normalizedQuery)) {
+      return true;
+    }
+    
+    // Tìm theo từng từ riêng lẻ (tất cả từ trong query phải xuất hiện trong text)
+    const queryWords = normalizedQuery.trim().split(/\s+/).filter(w => w.length > 0);
+    if (queryWords.length > 1) {
+      return queryWords.every(word => normalizedText.includes(word));
+    }
+    
+    return false;
+  };
+
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery) return sessionGroups;
+    
+    return sessionGroups.map((group) => {
+      if (matchesSearch(group.title, searchQuery)) {
+        return group;
+      }
+
+      const matchingPhotos = group.photos.filter(p => {
+        const noteMatch = p.note ? matchesSearch(p.note, searchQuery) : false;
+        const subjectMatch = p.subject ? matchesSearch(p.subject, searchQuery) : false;
+        const nameMatch = p.name ? matchesSearch(p.name, searchQuery) : false;
+        return noteMatch || subjectMatch || nameMatch;
+      });
+
+      if (matchingPhotos.length > 0) {
+        return { ...group, photos: matchingPhotos };
+      }
+      
+      return null;
+    }).filter((g): g is SessionGroup => g !== null);
+  }, [sessionGroups, searchQuery]);
+
+  
   const categoryName = folderName?.split('_').join(' ') || '';
 
   const toggleSession = (id: string) => {
@@ -135,76 +236,103 @@ export default function SessionFolderScreen() {
 
   return (
     <View className="flex-1 px-5 pt-2">
-      <View>
+      <View className="flex-1 px-4 pt-3">
+      
         <View className="flex-row items-center gap-4 mb-5">
           <TouchableOpacity
             onPress={() => router.replace('/gallery')}
             activeOpacity={0.8}
-            className="w-[35px] h-[35px] rounded-[11.25px] bg-[rgba(62,53,58,0.1)] flex items-center justify-center"
+            className="w-[35px] h-[35px] rounded-[8px] bg-[#F2F2F2] flex items-center justify-center"
           >
-            <ChevronLeft size={24} color="#fff" />
+            <ChevronLeft size={24} color="#35383E" />
           </TouchableOpacity>
 
           <View className="flex-1">
-            <Text className="text-sm font-sen font-bold uppercase text-[#35383E]">{categoryName}</Text>
-            <View className="w-full h-1 bg-[#8D7162]/50 rounded-full mt-1"></View>
+            <Text className="text-sm font-sen font-bold uppercase text-[#35383E] tracking-wider">{categoryName}</Text>
+            <View className="w-full h-[3px] bg-[#D2B48C] mt-1 opacity-80"></View>
           </View>
         </View>
-        <SearchBar />
+
+        <View className="mb-2">
+          <SearchBar 
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search for your photos" 
+          />
+        </View>
+        
+
+        {loading ? (
+          <ActivityIndicator size="large" color="#AC3C00" className="mt-10" />
+        ) : (
+          <ScrollView 
+              className="flex-1" 
+              showsVerticalScrollIndicator={false}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} 
+          >
+            {filteredSessions.length === 0 ? (
+              <Text className="text-center text-gray-400 mt-10 font-sen">
+                {searchQuery ? 'No matching photos found.' : 'No photos in this folder yet.'}
+              </Text>
+            ) : (
+              <View className="gap-y-3">
+                {filteredSessions.map((session) => {
+                  const isExpanded = expandedSession.includes(session.id);
+                  const bgClass = isExpanded ? 'bg-[#714E43]' : 'bg-[#FFD9B3]';
+                  const textClass = isExpanded ? 'text-white' : 'text-[#35383E]';
+
+                  return (
+                    <View key={session.id}>
+                      <TouchableOpacity
+                        onPress={() => toggleSession(session.id)}
+                        activeOpacity={0.8}
+                        className={`w-full flex-row items-center justify-between px-5 py-4 rounded-2xl ${bgClass}`}
+                      >
+                        <Text className={`font-sen font-bold text-sm uppercase ${textClass}`}>{session.title}</Text>
+                
+                        {isExpanded ? (
+                          <ChevronDown size={20} color={'#35383E'} />
+                        ) : (
+                          <ChevronLeft size={20} color={'#35383E'} />
+                        )}
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View className="flex-row flex-wrap mt-3 mb-4 pl-2">
+                          {session.photos.map((photo, index) => (
+                            <View key={`${photo.uri}-${index}`} className="w-[30%] m-[1.5%] aspect-square rounded-xl overflow-hidden">
+                              <TouchableOpacity
+                                testID={`session-photo-${index}`}
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                  // Ẩn keyboard trước khi navigate
+                                  Keyboard.dismiss();
+                                  // Chuyển hướng sang màn hình chi tiết
+                                  router.push({
+                                    pathname: '/imageDetails' as RelativePathString,
+                                    params: { uri: photo.uri },
+                                  });
+                                }}
+                              >
+                                <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            <View className="h-20" />
+          </ScrollView>
+        )}
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#AC3C00" className="mt-10" />
-      ) : (
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {sessionGroups.length === 0 ? (
-            <Text className="text-center text-gray-400 mt-10 font-sen">No photos found.</Text>
-          ) : (
-            <View className="gap-y-3">
-              {sessionGroups.map((session) => {
-                const isExpanded = expandedSession.includes(session.id);
-                const bgClass = isExpanded ? 'bg-[#714E43]' : 'bg-[#FFD9B3]';
-                const textClass = isExpanded ? 'text-white' : 'text-[#35383E]';
-
-                return (
-                  <View key={session.id}>
-                    <TouchableOpacity
-                      onPress={() => toggleSession(session.id)}
-                      activeOpacity={0.8}
-                      className={`w-full flex-row items-center justify-between px-4 py-3 rounded-[22.5px] ${bgClass}`}
-                    >
-                      <Text className={`font-sen font-bold text-sm uppercase ${textClass}`}>{session.title}</Text>
-                      {isExpanded ? <ChevronDown size={24} color={'#fff'} /> : <ChevronLeft size={24} color={'#714E43'} />}
-                    </TouchableOpacity>
-
-                    {isExpanded && (
-                      <View className="flex-row flex-wrap mt-4 mb-6">
-                        {session.photos.map((photo, index) => (
-                          <View key={index} className="w-[30%] m-[1.5%] aspect-square rounded-2xl overflow-hidden">
-                            <TouchableOpacity
-                              activeOpacity={0.8}
-                              onPress={() => {
-                                // Chuyển hướng sang màn hình chi tiết
-                                router.push({
-                                  pathname: '/imageDetails' as RelativePathString, // Trỏ tới file app/imageDetails/index.tsx
-                                  params: { uri: photo.uri }, // Truyền đường dẫn ảnh sang
-                                });
-                              }}
-                            >
-                              <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </ScrollView>
-      )}
-      <BottomNav />
+      <View className="absolute bottom-0 left-0 right-0 h-[70px]">
+         <BottomNav />
+      </View>
     </View>
   );
 }
