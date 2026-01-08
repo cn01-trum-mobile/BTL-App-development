@@ -21,6 +21,9 @@ module.exports = {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: 'com.vck2004.CapDeCours',
+      permissions: ['INTERNET'],
+      usesCleartextTraffic: true,
+      targetSdkVersion: 27,
     },
     web: {
       output: 'static',
@@ -61,7 +64,7 @@ module.exports = {
       eas: {
         projectId: '145725e0-99a3-48bd-8a8e-e03da7d4cd16',
       },
-      apiUrl: process.env.API_URL || 'https://b570db798a0f.ngrok-free.app',
+      apiUrl: process.env.API_URL || 'https://capdecours.tuanemtramtinh.io.vn',
     },
     owner: 'vck2004',
     runtimeVersion: {

@@ -232,7 +232,6 @@ describe('Home Screen – 100% coverage', () => {
 
     await waitFor(() => {
       expect(getByText('All images are organized!')).toBeTruthy();
-      expect(getByText('Great job!')).toBeTruthy();
     });
   });
 

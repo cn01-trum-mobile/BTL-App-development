@@ -166,7 +166,7 @@ export default function LoginScreen() {
 
             <TouchableOpacity style={styles.primaryButton} onPress={handleOpenSystemCalendarConnect} activeOpacity={0.8}>
               <Calendar size={20} color="#FFF" />
-              <Text style={styles.primaryButtonText}>Add from system calendar</Text>
+              <Text style={styles.primaryButtonText}>Add system calendar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.secondaryButton} onPress={handleChangePassword} activeOpacity={0.8}>

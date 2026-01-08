@@ -1,6 +1,6 @@
 import { storeData, getData } from '@/utils/asyncStorage';
 
-const API_URL = "http://35.222.243.209";
+const API_URL = 'https://capdecours.tuanemtramtinh.io.vn';
 const TOKEN_KEY = 'AUTH_TOKEN';
 const USERNAME_KEY = 'AUTH_USERNAME';
 

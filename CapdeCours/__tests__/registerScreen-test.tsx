@@ -126,7 +126,7 @@ describe('RegisterScreen', () => {
     fireEvent.press(getByText('SIGN UP'));
 
     await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Registration failed', errorMessage);
+      expect(Alert.alert).toHaveBeenCalledWith('Registration failed', errorMessage + '\nPassword needs at least 8 characters, including 1 uppercase character, 1 number and 1 special character' || 'Cannot create account, please try again');
     });
   });
 

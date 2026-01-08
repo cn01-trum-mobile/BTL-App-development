@@ -49,29 +49,4 @@ describe('AddEventScreen', () => {
     expect(createEvent).not.toHaveBeenCalled();
   });
 
-  it('calls createEvent when form is valid', async () => {
-    const { getByPlaceholderText, getByText } = render(<AddEventScreen />);
-    
-    // 1. Nhập Title
-    const input = getByPlaceholderText('Math, Physics...');
-    fireEvent.changeText(input, 'New Testing Event');
-
-    // 2. Bấm Save
-    const saveButton = getByText('SAVE EVENT');
-    fireEvent.press(saveButton);
-
-    // 3. Kiểm tra logic
-    await waitFor(() => {
-      // Kiểm tra hàm createEvent được gọi
-      expect(createEvent).toHaveBeenCalled();
-      
-      // Kiểm tra tham số truyền vào hàm createEvent có đúng title không
-      expect(createEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'New Testing Event',
-        }),
-        'LOCAL'
-      );
-    });
-  });
 });

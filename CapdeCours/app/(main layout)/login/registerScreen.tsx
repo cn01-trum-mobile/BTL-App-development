@@ -45,7 +45,7 @@ export default function RegisterScreen() {
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (err: any) {
-      Alert.alert('Registration failed', err?.message || 'Cannot create account, please try again');
+      Alert.alert('Registration failed', err?.message + '\nPassword needs at least 8 characters, including 1 uppercase character, 1 number and 1 special character' || 'Cannot create account, please try again');
     } finally {
       setLoading(false);
     }

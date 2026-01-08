@@ -12,7 +12,8 @@
     "test": "jest --watchAll",
     "test:coverage": "jest --coverage --watchAll=false",
     "test:onboarding": "jest Onboarding-test.tsx --coverage --watchAll=false",
-    "test:home": "jest home-test.tsx --coverage --watchAll=false"
+    "test:home": "jest home-test.tsx --coverage --watchAll=false",
+    "generate:api": "openapi --input http://35.222.243.209:80/openapi.json --output src/api --client fetch --useUnionTypes"
   },
   "jest": {
     "preset": "jest-expo",
@@ -52,6 +53,7 @@
     "@testing-library/react-native": "^13.3.3",
     "date-fns": "^4.1.0",
     "expo": "54.0.23",
+    "expo-build-properties": "~1.0.10",
     "expo-calendar": "~15.0.7",
     "expo-camera": "~17.0.8",
     "expo-constants": "~18.0.9",
@@ -93,6 +95,7 @@
     "eslint-config-expo": "~10.0.0",
     "jest": "~29.7.0",
     "jest-expo": "~54.0.13",
+    "openapi-typescript-codegen": "^0.30.0",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.5.11",
     "tailwindcss": "^3.4.17",

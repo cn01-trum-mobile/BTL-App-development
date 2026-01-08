@@ -50,7 +50,7 @@ export default function Onboarding() {
       translateX.value = withTiming(screenOffset - (currentScreen + 1) * screenWidth, { duration: 200 });
     } else {
       storeData('onboarded', '1');
-      router.replace('/home');
+      router.replace('/(main layout)/login');
     }
   };
   const handlePrev = () => {

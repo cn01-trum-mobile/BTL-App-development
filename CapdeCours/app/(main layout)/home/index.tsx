@@ -129,7 +129,7 @@ export default function Home() {
 
       {/* Schedule Section */}
       <View style={styles.scheduleSection}>
-        <Text style={styles.scheduleTitle}>Today&apos;s schedule ({format(selectedDate, 'dd/MM')})</Text>
+        <Text style={styles.scheduleTitle}>Your Schedule ({format(selectedDate, 'dd/MM')})</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color="#AC3C00" />
@@ -218,10 +218,7 @@ export default function Home() {
           ) : (
             <View className="py-4 items-center">
               <Text className="text-[#8D7162] font-sen text-sm text-center">
-                All your photos are neatly organized in folders.
-              </Text>
-              <Text className="text-[#8D7162] font-sen text-xs text-center mt-2">
-                Great job!
+                All your photos are neatly organized in folders. Great job!
               </Text>
             </View>
           )}
