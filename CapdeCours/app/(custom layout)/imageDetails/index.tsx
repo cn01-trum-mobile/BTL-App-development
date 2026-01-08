@@ -146,6 +146,7 @@ export default function DetailView() {
   const snapPoints = useMemo(() => ['11%', '25%', '50%', '90%'], []);
 
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // VIEW MODES: 'details' -> 'folder_selection' -> 'session_selection'
   const [viewMode, setViewMode] = useState<'details' | 'folder_selection' | 'session_selection'>('details');
@@ -666,7 +667,7 @@ export default function DetailView() {
           style: 'destructive',
           onPress: async () => {
             try {
-              setLoading(true);
+              setIsDeleting(true);
 
               // 1. Xóa file ảnh
               const imageFile = new File(data.uri);
@@ -688,18 +689,24 @@ export default function DetailView() {
               if (newPhotos.length > 0) {
                 const newIndex = Math.max(0, currentPhotoIndex - 1);
                 setCurrentPhotoIndex(newIndex);
+                // Cập nhật PagerView ngay lập tức
+                if (pagerRef.current) {
+                  pagerRef.current.setPage(newIndex);
+                }
                 await loadPhotoMetadata(newPhotos[newIndex]);
               } else {
                 // Nếu không còn ảnh nào, quay về
                 clearFolderCache(data.folder);
                 router.back();
+                return;
               }
               
               clearFolderCache(data.folder);
+              setIsDeleting(false);
             } catch (error) {
               console.error('Lỗi xóa file:', error);
               Alert.alert('Error', 'Could not delete the image.');
-              setLoading(false);
+              setIsDeleting(false);
             }
           },
         },
@@ -725,6 +732,12 @@ export default function DetailView() {
 
         {loadingMetadata && (
           <View className="absolute inset-0 justify-center items-center bg-black/20">
+            <ActivityIndicator size="small" color="#6E4A3F" />
+          </View>
+        )}
+
+        {isDeleting && (
+          <View className="absolute inset-0 justify-center items-center bg-black/20 z-50">
             <ActivityIndicator size="small" color="#6E4A3F" />
           </View>
         )}
