@@ -494,7 +494,10 @@ export default function GalleryScreen() {
         onRequestClose={() => setDeleteModalVisible(false)}
       >
         <View className="flex-1 justify-center items-center bg-black/50">
-          <View className="bg-[#fff8e3] rounded-2xl p-6 w-80">
+          <View
+            className="bg-[#fff8e3] rounded-2xl p-6 w-80"
+            testID="delete-modal-content"
+          >
             <Text className="text-xl font-bold text-primary mb-2">Delete Folder</Text>
             <Text className="text-gray-600 mb-6">
               Are you sure you want to delete &quot;{folderToDelete}&quot;? This action cannot be undone.
