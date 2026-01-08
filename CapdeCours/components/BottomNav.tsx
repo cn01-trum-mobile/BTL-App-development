@@ -22,7 +22,7 @@ export default function BottomNav() {
               activeOpacity={0.8}
               className="flex-1 items-center gap-1.5"
             >
-              <Home size={24} color={isActive('/home') ? '#A44063' : '#676D75'} strokeWidth={isActive('/') ? 2 : 1.5} />
+              <Home size={24} color={isActive('/home') || currentRoute.includes('/home') ? '#A44063' : '#676D75'} strokeWidth={isActive('/home') || currentRoute.includes('/home') ? 2 : 1.5} />
               <Text className="text-[12px] font-poppins text-[#676D75]">Home</Text>
             </TouchableOpacity>
 
@@ -34,7 +34,7 @@ export default function BottomNav() {
               activeOpacity={0.8}
               className="flex-1 items-center gap-1.5"
             >
-              <Image size={24} color={isActive('/gallery') || isActive('/sessionFolders') ? '#A44063' : '#676D75'} strokeWidth={isActive('') ? 2 : 1.5} />
+              <Image size={24} color={isActive('/gallery') || currentRoute.includes('/gallery') || currentRoute.includes('/sessionFolders') || currentRoute.includes('/imageDetails') ? '#A44063' : '#676D75'} strokeWidth={isActive('/gallery') || currentRoute.includes('/gallery') || currentRoute.includes('/sessionFolders') || currentRoute.includes('/imageDetails') ? 2 : 1.5} />
               <Text className="text-[12px] font-poppins text-[#676D75]">Gallery</Text>
             </TouchableOpacity>
           </>
@@ -60,7 +60,7 @@ export default function BottomNav() {
               activeOpacity={0.8}
               className="flex-1 items-center gap-1.5"
             >
-              <Clock size={24} color={isActive('') ? '#A44063' : '#676D75'} strokeWidth={isActive('') ? 2 : 1.5} />
+              <Clock size={24} color={isActive('/schedule') || currentRoute.includes('/schedule') ? '#A44063' : '#676D75'} strokeWidth={isActive('/schedule') || currentRoute.includes('/schedule') ? 2 : 1.5} />
               <Text className="text-[12px] font-poppins text-[#676D75]">Schedule</Text>
             </TouchableOpacity>
 
@@ -72,7 +72,7 @@ export default function BottomNav() {
               activeOpacity={0.8}
               className="flex-1 items-center gap-1.5"
             >
-              <User color={isActive('') ? '#A44063' : '#676D75'} strokeWidth={isActive('') ? 2 : 1.5} />
+              <User size={24} color={isActive('/login') || currentRoute.includes('/login') ? '#A44063' : '#676D75'} strokeWidth={isActive('/login') || currentRoute.includes('/login') ? 2 : 1.5} />
               <Text className="text-[12px] font-poppins text-[#676D75]">Profile</Text>
             </TouchableOpacity>
           </>
