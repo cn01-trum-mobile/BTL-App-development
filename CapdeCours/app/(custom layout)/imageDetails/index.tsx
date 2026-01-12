@@ -4,7 +4,7 @@ import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gor
 import { Trash2, Edit, Check, Plus, ChevronLeft, X, Folder, RotateCw } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { GestureHandlerRootView, PinchGestureHandler } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler } from 'react-native-gesture-handler';
 import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
 import FolderCard from '@/components/Folder';
@@ -30,7 +30,7 @@ interface PhotoItemProps {
 const CustomHandle: React.FC<BottomSheetHandleProps> = () => (
   <View className="items-center -mt-5 pb-2">
     <View className="bg-[#6E4A3F] px-10 py-2 rounded-lg shadow-sm">
-      <Text className="text-white font-bold text-lg">Details</Text>
+      <Text className="text-[#FFF8E3] font-bold text-lg">Details</Text>
     </View>
   </View>
 );
@@ -120,8 +120,10 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
 };
 
 const PhotoItem = React.memo(
-  ({ uri, rotation = 0, scale, onDoubleTap, onGestureEvent, onHandlerStateChange }: PhotoItemProps & { 
+  ({ uri, rotation = 0, scale, translateX, translateY, onDoubleTap, onGestureEvent, onHandlerStateChange }: PhotoItemProps & { 
     scale: number; 
+    translateX: number;
+    translateY: number;
     onDoubleTap: () => void;
     onGestureEvent: (event: any) => void;
     onHandlerStateChange: (event: any) => void;
@@ -130,7 +132,7 @@ const PhotoItem = React.memo(
       onGestureEvent={onGestureEvent}
       onHandlerStateChange={onHandlerStateChange}
     >
-      <View className="flex-1 bg-black justify-center items-center overflow-hidden">
+      <View className="flex-1 bg-[#FFF8E3] justify-center items-center overflow-hidden">
         <TouchableOpacity 
           activeOpacity={1}
           onPress={onDoubleTap}
@@ -138,12 +140,14 @@ const PhotoItem = React.memo(
         >
           <Image 
             source={{ uri }} 
-            className="w-full h-full" 
-            resizeMode="cover" 
+className="w-full h-full" 
+            resizeMode="contain" 
             fadeDuration={0} 
             progressiveRenderingEnabled={true}
             style={{
               transform: [
+                { translateX },
+                { translateY },
                 { rotate: `${rotation}deg` },
                 { scale }
               ]
@@ -156,7 +160,9 @@ const PhotoItem = React.memo(
   (prevProps, nextProps) => {
     return prevProps.uri === nextProps.uri && 
            prevProps.rotation === nextProps.rotation &&
-           prevProps.scale === nextProps.scale;
+           prevProps.scale === nextProps.scale &&
+           prevProps.translateX === nextProps.translateX &&
+           prevProps.translateY === nextProps.translateY;
   }
 );
 
@@ -225,6 +231,10 @@ const [data, setData] = useState({
   // State cho zoom
   const [scale, setScale] = useState(1);
   const [lastScale, setLastScale] = useState(1);
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+  const [lastTranslateX, setLastTranslateX] = useState(0);
+  const [lastTranslateY, setLastTranslateY] = useState(0);
 
   // 1. LOAD DATA INITIAL
   useEffect(() => {
@@ -792,19 +802,46 @@ const handleScrollBeginDrag = useCallback(() => {
 
   // Zoom handlers
   const handlePinchGestureEvent = useCallback((event: any) => {
-    setScale(event.nativeEvent.scale * lastScale);
-  }, [lastScale]);
+    const newScale = event.nativeEvent.scale * lastScale;
+    
+    // Calculate focal point translation
+    const { focalX, focalY } = event.nativeEvent;
+    const containerWidth = 400; // Approximate container width, you can make this dynamic
+    const containerHeight = 600; // Approximate container height, you can make this dynamic
+    
+    // Calculate the offset from center
+    const offsetX = (focalX - containerWidth / 2) / lastScale;
+    const offsetY = (focalY - containerHeight / 2) / lastScale;
+    
+    // Calculate new translate values to keep focal point at same position
+    const newTranslateX = lastTranslateX - (offsetX * (event.nativeEvent.scale - 1));
+    const newTranslateY = lastTranslateY - (offsetY * (event.nativeEvent.scale - 1));
+    
+    setScale(newScale);
+    setTranslateX(newTranslateX);
+    setTranslateY(newTranslateY);
+  }, [lastScale, lastTranslateX, lastTranslateY]);
 
   const handlePinchHandlerStateChange = useCallback((event: any) => {
     if (event.nativeEvent.state === 5) { // END
       setLastScale(scale);
+      setLastTranslateX(translateX);
+      setLastTranslateY(translateY);
     }
-  }, [scale]);
+  }, [scale, translateX, translateY]);
 
   const handleDoubleTap = useCallback(() => {
     const newScale = scale === 1 ? 2 : 1;
     setScale(newScale);
     setLastScale(newScale);
+    
+    // Reset translation when returning to normal scale
+    if (newScale === 1) {
+      setTranslateX(0);
+      setTranslateY(0);
+      setLastTranslateX(0);
+      setLastTranslateY(0);
+    }
   }, [scale]);
 
   if (loading) {
@@ -823,13 +860,13 @@ const handleScrollBeginDrag = useCallback(() => {
         {/* <View className="h-full relative">
           <Image source={{ uri: data.uri }} className="w-full h-full" resizeMode="cover" />
           
-          <TouchableOpacity onPress={() => router.back()} className="absolute top-12 left-4 p-2 bg-black/20 rounded-full">
-            <Text className="text-white text-xl font-bold">←</Text>
+<TouchableOpacity onPress={() => router.back()} className="absolute top-12 left-4 p-2 bg-[#714A36]/20 rounded-full">
+            <Text className="text-[#FFF8E3] text-xl font-bold">←</Text>
           </TouchableOpacity>
 
           
-          <TouchableOpacity onPress={handleDelete} className="absolute top-12 right-4 p-2 bg-black/20 rounded-full">
-            <Trash2 size={22} color="white" />
+          <TouchableOpacity onPress={handleDelete} className="absolute top-12 right-4 p-2 bg-[#714A36]/20 rounded-full">
+            <Trash2 size={22} color="#FFF8E3" />
           </TouchableOpacity>
         </View> */}
 
@@ -847,9 +884,13 @@ onPageSelected={(e) => {
                     setCurrentPhotoIndex(index);
                     const newUri = photos[index];
                     
-                    // Reset zoom khi chuyển ảnh
-                    setScale(1);
-                    setLastScale(1);
+                     // Reset zoom khi chuyển ảnh
+                     setScale(1);
+                     setLastScale(1);
+                     setTranslateX(0);
+                     setTranslateY(0);
+                     setLastTranslateX(0);
+                     setLastTranslateY(0);
                     
                     if (newUri && newUri !== data.uri) {
                       loadPhotoMetadata(newUri);
@@ -867,6 +908,8 @@ onPageSelected={(e) => {
                       uri={photoUri} 
                       rotation={photoRotations[photoUri] || 0}
                       scale={scale}
+                      translateX={translateX}
+                      translateY={translateY}
                       onDoubleTap={handleDoubleTap}
                       onGestureEvent={handlePinchGestureEvent}
                       onHandlerStateChange={handlePinchHandlerStateChange}
@@ -909,6 +952,8 @@ onPageSelected={(e) => {
                 uri={data.uri} 
                 rotation={photoRotations[data.uri] || data.rotation || 0}
                 scale={scale}
+                translateX={translateX}
+                translateY={translateY}
                 onDoubleTap={handleDoubleTap}
                 onGestureEvent={handlePinchGestureEvent}
                 onHandlerStateChange={handlePinchHandlerStateChange}
@@ -922,7 +967,7 @@ onPageSelected={(e) => {
             <TouchableOpacity 
               testID="header-back-button"
               onPress={() => router.back()} 
-              className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
+              className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
             >
               <ChevronLeft size={22} color="white" />
             </TouchableOpacity>
@@ -930,8 +975,8 @@ onPageSelected={(e) => {
             {/* Counter hiển thị số thứ tự ảnh */}
             {photos.length > 1 && (
               <View className="absolute left-0 right-0 items-center">
-                <View className="bg-black/50 px-4 py-2 rounded-full">
-                  <Text className="text-white text-sm font-semibold">
+<View className="bg-[#714A36]/50 px-4 py-2 rounded-full">
+                  <Text className="text-[#FFF8E3] text-sm font-semibold">
                     {currentPhotoIndex + 1}/{photos.length}
                   </Text>
                 </View>
@@ -943,7 +988,7 @@ onPageSelected={(e) => {
               {/* Rotate Button */}
               <TouchableOpacity 
                 onPress={() => handleRotate('right')}
-                className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
+                className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
               >
                 <RotateCw size={20} color="white" />
               </TouchableOpacity>
@@ -952,7 +997,7 @@ onPageSelected={(e) => {
               <TouchableOpacity 
                 testID="header-delete-button"
                 onPress={handleDelete} 
-                className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
+                className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
               >
                 <Trash2 size={20} color="white" />
               </TouchableOpacity>
@@ -966,8 +1011,8 @@ onPageSelected={(e) => {
               <View className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center mb-2">
                 <Check size={24} color="white" />
               </View>
-              <Text className="text-white text-center font-bold">Stored at folder</Text>
-              <Text className="text-white text-center font-bold">&quot;{data.session}&quot;</Text>
+<Text className="text-[#35383E] text-center font-bold">Stored at folder</Text>
+              <Text className="text-[#35383E] text-center font-bold">&quot;{data.session}&quot;</Text>
             </View>
           </View>
         )}
@@ -976,7 +1021,7 @@ onPageSelected={(e) => {
           ref={bottomSheetRef}
           index={1}
           snapPoints={snapPoints}
-          backgroundStyle={{ backgroundColor: '#FFFBEE', borderRadius: 20 }}
+          backgroundStyle={{ backgroundColor: '#FFFBEE', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(113, 78, 67, 0.2)' }}
           handleComponent={CustomHandle}
           handleIndicatorStyle={{ opacity: 0 }}
           keyboardBehavior="interactive"

@@ -1,5 +1,5 @@
 import { useBottomAction } from '@/context/NavActionContext';
-import { useLocalSearchParams, router} from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -15,8 +15,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { File, Paths, Directory } from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { BookOpen, BookText, Check, Download, X } from 'lucide-react-native';
 import { Alert } from '@/components/Alert';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 /* --- OLD CODE: Không dùng trực tiếp Calendar và AsyncStorage ở đây nữa --- */
 // import * as Calendar from 'expo-calendar';
@@ -30,16 +32,13 @@ import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import { PhotoItem, addPhotoToCache } from '@/utils/photoCache';
 
-
-
 export default function ImagePreviewScreen() {
   const { uri, rotation } = useLocalSearchParams<{ uri: string; rotation: string }>();
   const { setAction, resetAction } = useBottomAction();
   const [visible, setVisible] = useState<boolean>(false);
   const [message, setMessage] = useState<string>('');
   const [showNote, setShowNote] = useState(false);
-  const [note, setNote] = useState('');
-  const sideWay = ['1', '3', '2', '4'];
+const [note, setNote] = useState('');
 
   /* --- OLD CODE: State cũ --- */
   // const [events, setEvents] = useState<Calendar.Event[]>([]);
@@ -54,10 +53,23 @@ export default function ImagePreviewScreen() {
     return name.trim();
   }, []);
 
-  const savePhoto = useCallback(async () => {
+const savePhoto = useCallback(async () => {
     if (!uri) return;
     const now = new Date();
     const timestamp = now.getTime(); // Lấy timestamp (ms) để đảm bảo duy nhất
+    
+    // Luôn xoay về thẳng (landscape -> portrait)
+    let processedUri = uri;
+    if (rotation && ['6', '8'].includes(rotation)) {
+      const rotate = rotation === '6' ? 90 : -90;
+      const manipResult = await manipulateAsync(
+        uri,
+        [{ rotate }],
+        { compress: 0.8, format: SaveFormat.JPEG }
+      );
+      processedUri = manipResult.uri;
+      console.log('Auto-rotated landscape to portrait');
+    }
 
     // 1. XỬ LÝ FOLDER (Tên môn)
     // Logic này vẫn hoạt động tốt vì UnifiedEvent cũng có startDate/endDate/title giống Calendar.Event
@@ -93,14 +105,12 @@ export default function ImagePreviewScreen() {
       const fileName = `${name}.jpg`;
       const jsonName = `${name}.json`;
 
-      const sourceFile = new File(uri);
+const sourceFile = new File(processedUri);
       const destFile = new File(subjectDir, fileName);
       const jsonFile = new File(subjectDir, jsonName);
 
-      // Copy ảnh
-      if (!destFile.exists) {
-        sourceFile.copy(destFile);
-      }
+      // Copy ảnh (đã xử lý rotation)
+      sourceFile.copy(destFile);
 
       // Tạo Metadata
       const metadata = {
@@ -114,16 +124,29 @@ export default function ImagePreviewScreen() {
       // Ghi file JSON
       jsonFile.write(JSON.stringify(metadata, null, 2));
 
+// Lưu vào gallery đơn giản
+      try {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status === 'granted') {
+          // Lưu URI đã xử lý rotation
+          await MediaLibrary.saveToLibraryAsync(processedUri);
+          console.log('Photo saved to gallery');
+        }
+      } catch (galleryError) {
+        console.warn('Failed to save to gallery:', galleryError);
+      }
+
       const newPhotoItem: PhotoItem = {
-        uri: destFile.uri, 
+        uri: destFile.uri,
         name: fileName,
         timestamp: timestamp,
-        note: note,          
-        subject: folder, 
-        session: session,  
+        note: note,
+        subject: folder,
+        session: session,
       };
-      
+
       await addPhotoToCache(folder, newPhotoItem);
+      console.log('Photo saved and cached:', fileName, 'folder:', folder, 'session:', session);
 
       // UI Feedback
       setAction({
@@ -137,6 +160,12 @@ export default function ImagePreviewScreen() {
       setMessage(`Saved: ${fileName}`);
     } catch (error) {
       console.error('Error saving photo:', error);
+      setAction({
+        icon: <X size={24} color={'white'} strokeWidth={2} />,
+        onPress: () => {},
+      });
+      setVisible(true);
+      setMessage('Failed to save photo');
     }
   }, [setAction, uri, events, note, sanitizeFolderName]);
 
@@ -168,7 +197,7 @@ export default function ImagePreviewScreen() {
     // Tự động load lịch của ngày hiện tại khi component được mount
     const now = new Date();
     loadEvents(startOfDay(now), endOfDay(now));
-  }, [loadEvents]);
+  }, []); // Bỏ loadEvents để tránh infinite loop
   // -----------------------------------------------
 
   useEffect(() => {
@@ -216,12 +245,12 @@ export default function ImagePreviewScreen() {
           >
             <X size={24} strokeWidth={3} color={'#714A36'} />
           </TouchableOpacity>
-          {/* Image */}
-          {sideWay.includes(rotation) ? (
-            <Image resizeMode="center" source={{ uri }} className="flex-1 rounded-xl overflow-hidden" />
-          ) : (
-            <Image source={{ uri }} className="flex-1 rounded-xl overflow-hidden" />
-          )}
+{/* Image */}
+          <Image 
+            source={{ uri }} 
+            className="flex-1 rounded-xl overflow-hidden"
+            resizeMode="contain"
+          />
           {/* Note Toggle */}
           <View className="absolute bottom-5 right-5 ">
             <TouchableOpacity

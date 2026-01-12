@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { getPhotosFromCache, savePhotosToCache, PhotoItem, clearFolderCache } from '@/utils/photoCache';
 
 interface SessionGroup {
-  id: string; 
+  id: string;
   title: string;
   photos: PhotoItem[];
 }
@@ -18,14 +18,14 @@ const formatSessionDisplay = (sessionKey: string, index: number): string => {
   if (!sessionKey || sessionKey === 'unknown' || sessionKey === '') {
     return `Session ${index + 1} - Unknown date`;
   }
-  
+
   let dateObj: Date;
   dateObj = new Date(sessionKey);
-  
+
   if (isNaN(dateObj.getTime())) {
     dateObj = new Date(sessionKey + 'T00:00:00Z');
   }
-  
+
   if (!isNaN(dateObj.getTime())) {
     try {
       const day = dateObj.getDate().toString().padStart(2, '0');
@@ -57,97 +57,109 @@ export default function SessionFolderScreen() {
     }
   };
 
-  const loadAndGroupPhotos = useCallback(async (forceReload = false) => {
-    try {
-      if (!folderName) return;
-      setLoading(true);
-      let photosData: PhotoItem[] | null = null;
-      
-      if (!forceReload) {
-        photosData = await getPhotosFromCache(folderName);
-      }
-      if (!photosData || photosData.length === 0) {
-        console.log('Cache miss or refresh -> Scanning files...');
-        
-        const photosDir = new Directory(Paths.document, 'photos');
-        const subjectDir = new Directory(photosDir, folderName);
+  const loadAndGroupPhotos = useCallback(
+    async (forceReload = false) => {
+      try {
+        if (!folderName) return;
+        setLoading(true);
+        let photosData: PhotoItem[] | null = null;
 
-        if (!subjectDir.exists) {
-          setSessionGroups([]);
-          setLoading(false);
-          return;
+        if (!forceReload) {
+          photosData = await getPhotosFromCache(folderName);
+          console.log('Cache data for', folderName, ':', photosData?.length || 0, 'photos');
         }
+        if (!photosData || photosData.length === 0) {
+          const photosDir = new Directory(Paths.document, 'photos');
+          const subjectDir = new Directory(photosDir, folderName);
 
-        const allFiles = subjectDir.list();
-        const jsonFiles = allFiles.filter((f): f is File => f instanceof File && f.name.endsWith('.json'));
-        
-        const scannedPhotos: PhotoItem[] = [];
-        await Promise.all(
-          jsonFiles.map(async (jsonFile) => {
-            const imageUri = jsonFile.uri.replace('.json', '.jpg');
-            const imageFile = new File(imageUri);
+          if (!subjectDir.exists) {
+            setSessionGroups([]);
+            setLoading(false);
+            return;
+          }
 
-            if (imageFile.exists) {
-              const metadata = await readMetadata(jsonFile);
-              if (metadata) {
-                scannedPhotos.push({
-                  uri: imageUri,
-                  name: imageFile.name,
-                  timestamp: new Date(metadata.time).getTime(),
-                  note: metadata.note || '',      
-                  subject: metadata.subject || folderName,
-                  session: metadata.session || format(new Date(metadata.time), 'yyyy-MM-dd'),
-                });
+          const allFiles = subjectDir.list();
+          console.log(
+            'All files in folder:',
+            allFiles.map((f) => f.name)
+          );
+          const jsonFiles = allFiles.filter((f): f is File => f instanceof File && f.name.endsWith('.json'));
+          console.log('JSON files found:', jsonFiles.length);
+
+          console.log('Cache miss or empty -> Scanning files...');
+
+          const scannedPhotos: PhotoItem[] = [];
+          await Promise.all(
+            jsonFiles.map(async (jsonFile) => {
+              const imageUri = jsonFile.uri.replace('.json', '.jpg');
+              const imageFile = new File(imageUri);
+
+              console.log('Checking image:', imageUri, 'exists:', imageFile.exists);
+
+              if (imageFile.exists) {
+                const metadata = await readMetadata(jsonFile);
+                if (metadata) {
+                  scannedPhotos.push({
+                    uri: imageUri,
+                    name: imageFile.name,
+                    timestamp: new Date(metadata.time).getTime(),
+                    note: metadata.note || '',
+                    subject: metadata.subject || folderName,
+                    session: metadata.session || format(new Date(metadata.time), 'yyyy-MM-dd'),
+                  });
+                }
               }
-            }
-          })
-        );
+            })
+          );
 
-        photosData = scannedPhotos;
-        await savePhotosToCache(folderName, photosData);
-      } else {
-        console.log('Loaded from Cache');
-      }
-      const groups: Record<string, PhotoItem[]> = {};
-
-      photosData.forEach((photo) => {
-        const sessionKey = photo.session || 'unknown';
-
-        if (!groups[sessionKey]) {
-          groups[sessionKey] = [];
+          photosData = scannedPhotos;
+          console.log('Scanned', photosData.length, 'photos from files');
+          await savePhotosToCache(folderName, photosData);
+        } else {
+          console.log('Loaded from Cache');
         }
-        groups[sessionKey].push(photo);
-      });
+        const groups: Record<string, PhotoItem[]> = {};
 
-      // Sắp xếp Session từ CŨ -> MỚI để đánh số
-      const sortedDatesAsc = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+        photosData.forEach((photo) => {
+          const sessionKey = photo.session || 'unknown';
 
-      // Tạo mảng hiển thị
-      const result: SessionGroup[] = sortedDatesAsc.map((dateKey, index) => {
-        // Sort ảnh trong session (Mới nhất lên đầu)
-        groups[dateKey].sort((a, b) => b.timestamp - a.timestamp);
+          if (!groups[sessionKey]) {
+            groups[sessionKey] = [];
+          }
+          groups[sessionKey].push(photo);
+        });
 
-        return {
-          id: dateKey,
-          title: formatSessionDisplay(dateKey, index),
-          photos: groups[dateKey],
-        };
-      });
+        // Sắp xếp Session từ CŨ -> MỚI để đánh số
+        const sortedDatesAsc = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
-      // Đảo ngược để Session mới nhất lên đầu UI
-      result.reverse();
+        // Tạo mảng hiển thị
+        const result: SessionGroup[] = sortedDatesAsc.map((dateKey, index) => {
+          // Sort ảnh trong session (Mới nhất lên đầu)
+          groups[dateKey].sort((a, b) => b.timestamp - a.timestamp);
 
-      setSessionGroups(result);
-      if (result.length > 0 && !searchQuery) {
-        setExpandedSession([result[0].id]);
+          return {
+            id: dateKey,
+            title: formatSessionDisplay(dateKey, index),
+            photos: groups[dateKey],
+          };
+        });
+
+        // Đảo ngược để Session mới nhất lên đầu UI
+        result.reverse();
+
+        setSessionGroups(result);
+        if (result.length > 0 && !searchQuery) {
+          setExpandedSession([result[0].id]);
+        }
+      } catch (error) {
+        console.error('Error loading photos:', error);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch (error) {
-      console.error('Error loading photos:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [folderName]); // CHỈ CÓ folderName, không có searchQuery
+    },
+    [folderName]
+  ); // CHỈ CÓ folderName, không có searchQuery
 
   useEffect(() => {
     loadAndGroupPhotos();
@@ -156,7 +168,7 @@ export default function SessionFolderScreen() {
   // Effect riêng cho search - tự động mở tất cả session khi tìm kiếm
   useEffect(() => {
     if (searchQuery) {
-      const sessionIds = sessionGroups.map(s => s.id);
+      const sessionIds = sessionGroups.map((s) => s.id);
       setExpandedSession(sessionIds);
     } else {
       // Khi không search, mở session đầu tiên
@@ -183,51 +195,54 @@ export default function SessionFolderScreen() {
     });
   }, [folderName, loadAndGroupPhotos]);
 
-
   // Hàm kiểm tra text có chứa query không (tìm theo substring hoặc từng từ)
   const matchesSearch = (text: string, query: string): boolean => {
     if (!text || !query) return false;
     const normalizedText = text.toLowerCase();
     const normalizedQuery = query.toLowerCase();
-    
+
     // Tìm substring (đã có sẵn)
     if (normalizedText.includes(normalizedQuery)) {
       return true;
     }
-    
+
     // Tìm theo từng từ riêng lẻ (tất cả từ trong query phải xuất hiện trong text)
-    const queryWords = normalizedQuery.trim().split(/\s+/).filter(w => w.length > 0);
+    const queryWords = normalizedQuery
+      .trim()
+      .split(/\s+/)
+      .filter((w) => w.length > 0);
     if (queryWords.length > 1) {
-      return queryWords.every(word => normalizedText.includes(word));
+      return queryWords.every((word) => normalizedText.includes(word));
     }
-    
+
     return false;
   };
 
   const filteredSessions = useMemo(() => {
     if (!searchQuery) return sessionGroups;
-    
-    return sessionGroups.map((group) => {
-      if (matchesSearch(group.title, searchQuery)) {
-        return group;
-      }
 
-      const matchingPhotos = group.photos.filter(p => {
-        const noteMatch = p.note ? matchesSearch(p.note, searchQuery) : false;
-        const subjectMatch = p.subject ? matchesSearch(p.subject, searchQuery) : false;
-        const nameMatch = p.name ? matchesSearch(p.name, searchQuery) : false;
-        return noteMatch || subjectMatch || nameMatch;
-      });
+    return sessionGroups
+      .map((group) => {
+        if (matchesSearch(group.title, searchQuery)) {
+          return group;
+        }
 
-      if (matchingPhotos.length > 0) {
-        return { ...group, photos: matchingPhotos };
-      }
-      
-      return null;
-    }).filter((g): g is SessionGroup => g !== null);
+        const matchingPhotos = group.photos.filter((p) => {
+          const noteMatch = p.note ? matchesSearch(p.note, searchQuery) : false;
+          const subjectMatch = p.subject ? matchesSearch(p.subject, searchQuery) : false;
+          const nameMatch = p.name ? matchesSearch(p.name, searchQuery) : false;
+          return noteMatch || subjectMatch || nameMatch;
+        });
+
+        if (matchingPhotos.length > 0) {
+          return { ...group, photos: matchingPhotos };
+        }
+
+        return null;
+      })
+      .filter((g): g is SessionGroup => g !== null);
   }, [sessionGroups, searchQuery]);
 
-  
   const categoryName = folderName?.split('_').join(' ') || '';
 
   const toggleSession = (id: string) => {
@@ -237,7 +252,6 @@ export default function SessionFolderScreen() {
   return (
     <View className="flex-1 px-5 pt-2">
       <View className="flex-1 px-4 pt-3">
-      
         <View className="flex-row items-center gap-4 mb-5">
           <TouchableOpacity
             onPress={() => router.replace('/gallery')}
@@ -254,26 +268,15 @@ export default function SessionFolderScreen() {
         </View>
 
         <View className="mb-2">
-          <SearchBar 
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search for your photos" 
-          />
+          <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search for your photos" />
         </View>
-        
 
         {loading ? (
           <ActivityIndicator size="large" color="#AC3C00" className="mt-10" />
         ) : (
-          <ScrollView 
-              className="flex-1" 
-              showsVerticalScrollIndicator={false}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} 
-          >
+          <ScrollView className="flex-1" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
             {filteredSessions.length === 0 ? (
-              <Text className="text-center text-gray-400 mt-10 font-sen">
-                {searchQuery ? 'No matching photos found.' : 'No photos in this folder yet.'}
-              </Text>
+              <Text className="text-center text-gray-400 mt-10 font-sen">{searchQuery ? 'No matching photos found.' : 'No photos in this folder yet.'}</Text>
             ) : (
               <View className="gap-y-3">
                 {filteredSessions.map((session) => {
@@ -289,12 +292,8 @@ export default function SessionFolderScreen() {
                         className={`w-full flex-row items-center justify-between px-5 py-4 rounded-2xl ${bgClass}`}
                       >
                         <Text className={`font-sen font-bold text-sm uppercase ${textClass}`}>{session.title}</Text>
-                
-                        {isExpanded ? (
-                          <ChevronDown size={20} color={'#35383E'} />
-                        ) : (
-                          <ChevronLeft size={20} color={'#35383E'} />
-                        )}
+
+                        {isExpanded ? <ChevronDown size={20} color={'#35383E'} /> : <ChevronLeft size={20} color={'#35383E'} />}
                       </TouchableOpacity>
 
                       {isExpanded && (
@@ -314,7 +313,12 @@ export default function SessionFolderScreen() {
                                   });
                                 }}
                               >
-                                <Image source={{ uri: photo.uri }} className="w-full h-full" resizeMode="cover" />
+                                <Image
+                                  source={{ uri: photo.uri }}
+                                  className="w-full h-full"
+                                  resizeMode="cover"
+                                  onError={(e) => console.log('Image load error:', e.nativeEvent.error, 'uri:', photo.uri)}
+                                />
                               </TouchableOpacity>
                             </View>
                           ))}
@@ -331,7 +335,7 @@ export default function SessionFolderScreen() {
       </View>
 
       <View className="absolute bottom-0 left-0 right-0 h-[70px]">
-         <BottomNav />
+        <BottomNav />
       </View>
     </View>
   );
