@@ -58,18 +58,8 @@ const savePhoto = useCallback(async () => {
     const now = new Date();
     const timestamp = now.getTime(); // Lấy timestamp (ms) để đảm bảo duy nhất
     
-    // Luôn xoay về thẳng (landscape -> portrait)
+    // Gi nguyên ảnh gốc, không xoay tự động
     let processedUri = uri;
-    if (rotation && ['6', '8'].includes(rotation)) {
-      const rotate = rotation === '6' ? 90 : -90;
-      const manipResult = await manipulateAsync(
-        uri,
-        [{ rotate }],
-        { compress: 0.8, format: SaveFormat.JPEG }
-      );
-      processedUri = manipResult.uri;
-      console.log('Auto-rotated landscape to portrait');
-    }
 
     // 1. XỬ LÝ FOLDER (Tên môn)
     // Logic này vẫn hoạt động tốt vì UnifiedEvent cũng có startDate/endDate/title giống Calendar.Event
@@ -264,20 +254,20 @@ const sourceFile = new File(processedUri);
           </View>
           {/* Note Input */}
           {showNote && (
-            <View className="absolute top-1/3 left-0 right-0 px-7">
-              <View className="bg-[#FFF8E3] rounded-2xl border-primary border">
+            <View className="absolute bottom-20 left-0 right-0 px-7">
+              <View className="bg-[#FFF8E3] rounded-2xl border-primary border max-h-96">
                 {/* Header */}
                 <View className="bg-[#714A36] py-1.5 rounded-xl -mt-4 mx-auto px-12 items-center">
                   <Text className="text-white text-center font-sen font-bold text-xl">Note</Text>
                 </View>
 
                 {/* Text area */}
-                <ScrollView className="p-4 min-h-1/3">
+                <ScrollView className="p-4 max-h-80">
                   <TextInput
                     value={note}
                     onChangeText={setNote}
                     placeholder="Add a note for this photo..."
-                    className="w-full min-h-40 text-sm text-[#555] font-sen bg-transparent border-0 mb-4"
+                    className="w-full min-h-32 text-sm text-[#555] font-sen bg-transparent border-0 mb-4"
                     multiline
                     autoFocus
                   />

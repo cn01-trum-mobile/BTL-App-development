@@ -8,6 +8,9 @@ import {
   Alert, 
   ActivityIndicator, 
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  KeyboardAvoidingViewProps,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native'; // Chỉ giữ lại icon Back
@@ -15,6 +18,7 @@ import { authApi } from '@/app/services/authApi';
 
 export default function RegisterScreen() {
   const router = useRouter();
+  let scrollView: ScrollView | null = null;
   
   // State form
   const [name, setName] = useState('');
@@ -52,11 +56,19 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
       <ScrollView 
+        ref={(ref) => { scrollView = ref; }}
         style={styles.container} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustContentInsets={false}
+        contentInset={{ top: 0, left: 0, bottom: 0, right: 0 }}
       >
         <View style={styles.content}>
           <View style={styles.headerSection}>
@@ -116,6 +128,11 @@ export default function RegisterScreen() {
                 value={confirmPassword} 
                 onChangeText={setConfirmPassword} 
                 secureTextEntry 
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollView?.scrollToEnd({ animated: true });
+                  }, 100);
+                }}
               />
             </View>
 
@@ -143,7 +160,7 @@ export default function RegisterScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

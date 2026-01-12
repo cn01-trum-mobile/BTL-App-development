@@ -152,12 +152,12 @@ export default function CalendarSelectScreen({ navigation }: any) {
         <TouchableOpacity
           className={`h-[50px] w-[200px] rounded-xl items-center justify-center flex-row shadow-sm ${selectedIds.size > 0 ? 'bg-[#AC3C00]' : 'bg-gray-300'}`}
           onPress={handleContinue}
-          disabled={selectedIds.size === 0 || isSaving}
+          // disabled={selectedIds.size === 0 || isSaving}
         >
           {isSaving ? (
             <ActivityIndicator size="small" color="#ffffff" />
           ) : (
-            <Text className="text-white font-poppins-regular text-[14px] font-bold uppercase tracking-widest">CONTINUE ({selectedIds.size})</Text>
+            <Text className="text-white font-poppins-regular text-[14px] font-bold uppercase tracking-widest">FINISH ({selectedIds.size})</Text>
           )}
         </TouchableOpacity>
       </View>

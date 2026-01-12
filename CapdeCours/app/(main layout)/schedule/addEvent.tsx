@@ -1,6 +1,6 @@
 // app/(main layout)/schedule/addEvent.tsx
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform, KeyboardAvoidingView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
@@ -118,8 +118,15 @@ export default function AddEventScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.pageTitle}>{isEditing ? 'Edit event' : 'Add new event'}</Text>
 
         {/* --- FORM --- */}
@@ -177,7 +184,7 @@ export default function AddEventScreen() {
 
         <View style={{ height: 50 }} />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
