@@ -82,15 +82,18 @@ export default function CalendarSelectScreen({ navigation }: any) {
     setSelectedIds(newSelection);
   };
 
-  // Xử lý lưu
+// Xử lý lưu
   const handleContinue = async () => {
-    if (selectedIds.size === 0) return;
-
     setIsSaving(true);
     try {
       const idsArray = Array.from(selectedIds);
       await storeData('USER_CALENDAR_IDS', JSON.stringify(idsArray));
-      Alert.alert('Thành công', `Đã cập nhật ${idsArray.length} nguồn lịch.`);
+      
+      if (selectedIds.size === 0) {
+        Alert.alert('Thành công', 'Đã xóa tất cả lịch đã chọn trước đó');
+      } else {
+        Alert.alert('Thành công', 'Đã cập nhật thành công');
+      }
       // navigation.navigate('Home'); // Ví dụ chuyển trang
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
@@ -147,17 +150,18 @@ export default function CalendarSelectScreen({ navigation }: any) {
         </ScrollView>
       )}
 
-      {/* Button */}
+{/* Button */}
       <View className="w-full items-center mb-8 bg-[#FFF8E3] pt-2">
         <TouchableOpacity
-          className={`h-[50px] w-[200px] rounded-xl items-center justify-center flex-row shadow-sm ${selectedIds.size > 0 ? 'bg-[#AC3C00]' : 'bg-gray-300'}`}
+          className="h-[50px] w-[200px] rounded-xl items-center justify-center flex-row shadow-sm bg-[#AC3C00]"
           onPress={handleContinue}
-          // disabled={selectedIds.size === 0 || isSaving}
         >
           {isSaving ? (
             <ActivityIndicator size="small" color="#ffffff" />
           ) : (
-            <Text className="text-white font-poppins-regular text-[14px] font-bold uppercase tracking-widest">FINISH ({selectedIds.size})</Text>
+            <Text className="text-white font-poppins-regular text-[14px] font-bold uppercase tracking-widest">
+              FINISH{selectedIds.size > 0 && ` (${selectedIds.size})`}
+            </Text>
           )}
         </TouchableOpacity>
       </View>

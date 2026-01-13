@@ -1,24 +1,12 @@
 import { useBottomAction } from '@/context/NavActionContext';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  View,
-  Image,
-  TouchableOpacity,
-  Text,
-  TextInput,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Image, TouchableOpacity, Text, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, ActivityIndicator, Dimensions } from 'react-native';
 import { File, Paths, Directory } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
-import { BookOpen, BookText, Check, Download, X } from 'lucide-react-native';
+import { BookOpen, BookText, Check, Download, X, Image as ImageIcon } from 'lucide-react-native';
 import { Alert } from '@/components/Alert';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+// import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 /* --- OLD CODE: Không dùng trực tiếp Calendar và AsyncStorage ở đây nữa --- */
 // import * as Calendar from 'expo-calendar';
@@ -33,12 +21,15 @@ import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import { PhotoItem, addPhotoToCache } from '@/utils/photoCache';
 
 export default function ImagePreviewScreen() {
-  const { uri, rotation } = useLocalSearchParams<{ uri: string; rotation: string }>();
+  const { uri } = useLocalSearchParams<{ uri: string }>();
   const { setAction, resetAction } = useBottomAction();
   const [visible, setVisible] = useState<boolean>(false);
   const [message, setMessage] = useState<string>('');
   const [showNote, setShowNote] = useState(false);
 const [note, setNote] = useState('');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isGallerySave, setIsGallerySave] = useState(false);
+  // const screenHeight = Dimensions.get('window').height;
 
   /* --- OLD CODE: State cũ --- */
   // const [events, setEvents] = useState<Calendar.Event[]>([]);
@@ -53,11 +44,57 @@ const [note, setNote] = useState('');
     return name.trim();
   }, []);
 
-const savePhoto = useCallback(async () => {
+const saveToGallery = useCallback(async () => {
+  if (!uri) return;
+
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== 'granted') {
+      setMessage('Gallery permission denied');
+      setVisible(true);
+      return;
+    }
+
+    const now = new Date();
+    const currentEvent = events.find((event) => {
+      const start = new Date(event.startDate);
+      const end = new Date(event.endDate);
+      return isWithinInterval(now, { start, end });
+    });
+
+    const folderName = currentEvent
+      ? sanitizeFolderName(currentEvent.title)
+      : 'Unorganized';
+
+// Lưu thẳng vào gallery
+    await MediaLibrary.saveToLibraryAsync(uri);
+    
+    setMessage('Photo saved to gallery');
+    setVisible(true);
+    
+    // Reset lại sau 2 giây để tắt icon check, không quay về camera
+    setTimeout(() => {
+      resetAction();
+    }, 2000);
+  } catch (error) {
+    console.error('Error saving to gallery:', error);
+    setAction({
+      icon: <X size={24} color={'white'} strokeWidth={2} />,
+      onPress: () => {
+        // Không làm gì, chỉ để tắt icon
+      },
+    });
+    setMessage('Failed to save to gallery');
+    setVisible(true);
+  }
+}, [uri, events, sanitizeFolderName]);
+
+
+  const savePhoto = useCallback(async () => {
     if (!uri) return;
     const now = new Date();
     const timestamp = now.getTime(); // Lấy timestamp (ms) để đảm bảo duy nhất
-    
+
     // Gi nguyên ảnh gốc, không xoay tự động
     let processedUri = uri;
 
@@ -95,7 +132,7 @@ const savePhoto = useCallback(async () => {
       const fileName = `${name}.jpg`;
       const jsonName = `${name}.json`;
 
-const sourceFile = new File(processedUri);
+      const sourceFile = new File(processedUri);
       const destFile = new File(subjectDir, fileName);
       const jsonFile = new File(subjectDir, jsonName);
 
@@ -114,17 +151,7 @@ const sourceFile = new File(processedUri);
       // Ghi file JSON
       jsonFile.write(JSON.stringify(metadata, null, 2));
 
-// Lưu vào gallery đơn giản
-      try {
-        const { status } = await MediaLibrary.requestPermissionsAsync();
-        if (status === 'granted') {
-          // Lưu URI đã xử lý rotation
-          await MediaLibrary.saveToLibraryAsync(processedUri);
-          console.log('Photo saved to gallery');
-        }
-      } catch (galleryError) {
-        console.warn('Failed to save to gallery:', galleryError);
-      }
+      // Không tự lưu vào gallery nữa, chỉ lưu vào app storage
 
       const newPhotoItem: PhotoItem = {
         uri: destFile.uri,
@@ -138,16 +165,22 @@ const sourceFile = new File(processedUri);
       await addPhotoToCache(folder, newPhotoItem);
       console.log('Photo saved and cached:', fileName, 'folder:', folder, 'session:', session);
 
-      // UI Feedback
+// UI Feedback
       setAction({
         icon: <Check size={24} color={'white'} strokeWidth={2} />,
         onPress: () => {
-          router.replace('/camera');
+          // Không làm gì cả để tránh double-click
         },
       });
       setVisible(true);
       // Thông báo cho người dùng biết đã lưu
       setMessage(`Saved: ${fileName}`);
+      
+      // Tự động quay về trang camera sau 1.5 giây để tránh double-click
+      setTimeout(() => {
+        router.replace('/camera');
+        resetAction();
+      }, 1500);
     } catch (error) {
       console.error('Error saving photo:', error);
       setAction({
@@ -157,7 +190,7 @@ const sourceFile = new File(processedUri);
       setVisible(true);
       setMessage('Failed to save photo');
     }
-  }, [setAction, uri, events, note, sanitizeFolderName]);
+  }, [setAction, uri, events, note, sanitizeFolderName, loadEvents]);
 
   /* --- OLD CODE: Hàm fetchCalendar thủ công --- */
   // const fetchCalendar = useCallback(async () => {
@@ -218,6 +251,21 @@ const sourceFile = new File(processedUri);
   }, [resetAction]);
   // ----------------------------------------------
 
+  // Keyboard height listener
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+
   return (
     <TouchableWithoutFeedback
       onPress={() => {
@@ -225,67 +273,80 @@ const sourceFile = new File(processedUri);
         setShowNote(false);
       }}
     >
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View className="flex-1">
-          {/* Discard Button */}
+      <View style={{ flex: 1 }}>
+        {/* Discard Button */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => router.replace('/camera')}
+          className="absolute right-5 top-5 z-10 rounded-full border-3 bg-[#FFF8E3] p-1"
+        >
+          <X size={24} strokeWidth={3} color={'#714A36'} />
+        </TouchableOpacity>
+        {/* Image */}
+        <Image source={{ uri }} className="flex-1 rounded-xl overflow-hidden" resizeMode="contain" />
+        {/* Note Toggle */}
+        <View className="absolute bottom-5 right-5">
           <TouchableOpacity
+            onPress={() => setShowNote(!showNote)}
             activeOpacity={0.8}
-            onPress={() => router.replace('/camera')}
-            className="absolute right-5 top-5 z-10 rounded-full border-3 bg-[#FFF8E3] p-1"
+            className="w-[60px] h-[60px] rounded-full flex items-center justify-center border border-primary"
+            style={{ backgroundColor: showNote ? '#714A36' : '#FFF8E3' }}
           >
-            <X size={24} strokeWidth={3} color={'#714A36'} />
+            {showNote ? <BookOpen size={24} color={'white'} /> : <BookText size={24} color={'#714E43'} />}
           </TouchableOpacity>
-{/* Image */}
-          <Image 
-            source={{ uri }} 
-            className="flex-1 rounded-xl overflow-hidden"
-            resizeMode="contain"
-          />
-          {/* Note Toggle */}
-          <View className="absolute bottom-5 right-5 ">
-            <TouchableOpacity
-              onPress={() => setShowNote(!showNote)}
-              activeOpacity={0.8}
-              className="w-[60px] h-[60px] rounded-full flex items-center justify-center border border-primary"
-              style={{ backgroundColor: showNote ? '#714A36' : '#FFF8E3' }}
-            >
-              {showNote ? <BookOpen size={24} color={'white'} /> : <BookText size={24} color={'#714E43'} />}
-            </TouchableOpacity>
-          </View>
-          {/* Note Input */}
-          {showNote && (
-            <View className="absolute bottom-20 left-0 right-0 px-7">
-              <View className="bg-[#FFF8E3] rounded-2xl border-primary border max-h-96">
-                {/* Header */}
-                <View className="bg-[#714A36] py-1.5 rounded-xl -mt-4 mx-auto px-12 items-center">
-                  <Text className="text-white text-center font-sen font-bold text-xl">Note</Text>
-                </View>
-
-                {/* Text area */}
-                <ScrollView className="p-4 max-h-80">
-                  <TextInput
-                    value={note}
-                    onChangeText={setNote}
-                    placeholder="Add a note for this photo..."
-                    className="w-full min-h-32 text-sm text-[#555] font-sen bg-transparent border-0 mb-4"
-                    multiline
-                    autoFocus
-                  />
-                </ScrollView>
-              </View>
-            </View>
-          )}
-          {/* Noti */}
-          <Alert
-            message={message}
-            visible={visible}
-            onDismiss={() => {
-              setVisible(false);
-              router.replace('/camera');
-            }}
-          />
         </View>
-      </KeyboardAvoidingView>
+
+        {/* Gallery Save Button */}
+        <View className="absolute bottom-5 left-5">
+          <TouchableOpacity
+            onPress={saveToGallery}
+            activeOpacity={0.8}
+            className="w-[60px] h-[60px] rounded-full flex items-center justify-center border border-primary bg-[#FFF8E3]"
+          >
+            <ImageIcon size={24} color={'#714E43'} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Note Input */}
+        {showNote && (
+          <View className="absolute bottom-20 left-0 right-0 px-7" style={{ marginBottom: keyboardHeight > 0 ? keyboardHeight - 150 : 0 }}>
+            <View className="bg-[#FFF8E3] rounded-2xl border-primary border max-h-96 relative">
+              {/* Close button */}
+              <TouchableOpacity
+                onPress={() => setShowNote(false)}
+                className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-[#714A36] items-center justify-center"
+              >
+                <Check size={14} color={'white'} strokeWidth={2} />
+              </TouchableOpacity>
+
+              {/* Header */}
+              <View className="bg-[#714A36] py-1.5 rounded-xl -mt-4 mx-auto px-12 items-center">
+                <Text className="text-white text-center font-sen font-bold text-xl">Note</Text>
+              </View>
+
+              {/* Text area */}
+              <ScrollView className="p-4 max-h-80">
+                <TextInput
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder="Add a note for this photo..."
+                  className="w-full min-h-32 text-sm text-[#555] font-sen bg-transparent border-0 mb-4"
+                  multiline
+                  autoFocus
+                />
+              </ScrollView>
+            </View>
+          </View>
+        )}
+        {/* Noti */}
+        <Alert
+          message={message}
+          visible={visible}
+          onDismiss={() => {
+            setVisible(false);
+          }}
+        />
+      </View>
     </TouchableWithoutFeedback>
   );
 }

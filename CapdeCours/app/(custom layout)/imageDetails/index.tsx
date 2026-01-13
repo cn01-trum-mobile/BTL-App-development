@@ -1,12 +1,13 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gorhom/bottom-sheet';
-import { Trash2, Edit, Check, Plus, ChevronLeft, X, Folder, RotateCw } from 'lucide-react-native';
+import { Trash2, Edit, Check, Plus, ChevronLeft, X, Folder, RotateCw, Download } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler } from 'react-native-gesture-handler';
 import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
+import * as MediaLibrary from 'expo-media-library';
 import FolderCard from '@/components/Folder';
 import { clearFolderCache, updateCacheAfterMove, getPhotosFromCache, savePhotosToCache } from '@/utils/photoCache';
 import PagerView from 'react-native-pager-view';
@@ -292,11 +293,29 @@ setData({
       const photosDir = new Directory(Paths.document, 'photos');
       if (!photosDir.exists) return;
       const items = photosDir.list();
-      const folders = items
-        .filter((item) => item instanceof Directory)
-        .map((dir) => dir.name)
-        .sort();
-      setAvailableFolders(folders);
+      
+      // Filter and get only folders that contain images
+      const foldersWithImages = await Promise.all(
+        items
+          .filter((item) => item instanceof Directory)
+          .map(async (dir) => {
+            const files = dir.list();
+            const hasImages = files.some(
+              (f) => f instanceof File && (
+                f.name.toLowerCase().endsWith('.jpg') || 
+                f.name.toLowerCase().endsWith('.jpeg') || 
+                f.name.toLowerCase().endsWith('.png')
+              )
+            );
+            return hasImages ? dir.name : null;
+          })
+      );
+      
+      const validFolders = foldersWithImages
+        .filter(folder => folder !== null)
+        .sort((a, b) => a.localeCompare(b)); // Case-sensitive sort
+        
+      setAvailableFolders(validFolders);
     } catch (e) {
       console.error(e);
     }
@@ -742,7 +761,31 @@ if (
     }
   };
 
-  const handleDelete = () => {
+const handleSaveToGallery = async () => {
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Gallery permission is required to save photos.');
+      return;
+    }
+
+    // Lấy URI của ảnh hiện tại (dựa vào currentPhotoIndex)
+    const currentUri = photos.length > 0 ? photos[currentPhotoIndex] : data.uri;
+    if (!currentUri) {
+      Alert.alert('Error', 'No image found to save.');
+      return;
+    }
+
+// Lưu thẳng vào gallery
+    await MediaLibrary.saveToLibraryAsync(currentUri);
+    Alert.alert('Success', 'Photo saved to gallery');
+  } catch (error) {
+    console.error('Error saving to gallery:', error);
+    Alert.alert('Error', 'Failed to save photo to gallery.');
+  }
+};
+
+const handleDelete = () => {
     Alert.alert('Image Deletion', 'Do you want to delete this image? This action cannot be undone.', [
       {
         text: 'Hủy',
@@ -985,12 +1028,20 @@ onPageSelected={(e) => {
 
             {/* Action Buttons */}
             <View className="flex-row gap-2">
-              {/* Rotate Button */}
+{/* Rotate Button */}
               <TouchableOpacity 
                 onPress={() => handleRotate('right')}
                 className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
               >
                 <RotateCw size={20} color="white" />
+              </TouchableOpacity>
+
+              {/* Save to Gallery Button */}
+              <TouchableOpacity 
+                onPress={handleSaveToGallery}
+                className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
+              >
+                <Download size={20} color="white" />
               </TouchableOpacity>
 
               {/* Delete Button */}
@@ -1120,7 +1171,7 @@ onPageSelected={(e) => {
                 <View className="gap-y-1">
                   {availableFolders.map((folder) => {
                     const currentFolderRaw = data.folder || '';
-                    const isCurrent = currentFolderRaw.trim().toLowerCase() === folder.trim().toLowerCase();
+                    const isCurrent = currentFolderRaw === folder;
                     const backgroundColor = isCurrent ? '#6E4A3F' : '#FFD9B3';
                     const textColor = isCurrent ? 'text-white' : 'text-[#35383E]';
 
