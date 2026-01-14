@@ -296,17 +296,6 @@ const saveToGallery = useCallback(async () => {
           </TouchableOpacity>
         </View>
 
-        {/* Gallery Save Button */}
-        <View className="absolute bottom-5 left-5">
-          <TouchableOpacity
-            onPress={saveToGallery}
-            activeOpacity={0.8}
-            className="w-[60px] h-[60px] rounded-full flex items-center justify-center border border-primary bg-[#FFF8E3]"
-          >
-            <ImageIcon size={24} color={'#714E43'} />
-          </TouchableOpacity>
-        </View>
-
         {/* Note Input */}
         {showNote && (
           <View className="absolute bottom-20 left-0 right-0 px-7" style={{ marginBottom: keyboardHeight > 0 ? keyboardHeight - 150 : 0 }}>

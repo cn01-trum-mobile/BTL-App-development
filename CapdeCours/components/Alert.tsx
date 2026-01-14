@@ -34,7 +34,7 @@ export function Alert({ visible, message, onDismiss }: { visible: boolean; messa
             <View className="mx-auto mb-2 rounded-full flex items-center justify-center">
               <CheckCircle2Icon size={40} color={'white'} strokeWidth={1} />
             </View>
-            <Text className="text-white font-sen font-bold text-sm text-center">{message}</Text>
+            <Text className="text-white font-bold text-sm text-center">{message}</Text>
           </View>
         </Pressable>
       </Animated.View>

@@ -68,7 +68,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
     return (
       <View className="mb-6 mx-3">
         <Text className="font-bold text-[#6E4A3F] mb-1">{label}</Text>
-        <Text className="text-base font-semibold text-neutral-800 pt-1">{initialValue}</Text>
+        <Text className="text-base font-semibold text-[#4B3B36] pt-1">{initialValue}</Text>
       </View>
     );
   }
@@ -78,7 +78,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
       <View className="mb-6 mx-3">
         <Text className="text-[#6E4A3F] mb-1 font-bold">{label}</Text>
         <View className="flex-row justify-between items-center py-1">
-          <Text className="text-base font-semibold text-neutral-800 flex-1 mr-2">
+          <Text className="text-base font-semibold text-[#4B3B36] flex-1 mr-2">
             {/* Hiển thị Folder hiện tại */}
             {currentValue}
           </Text>
@@ -99,7 +99,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
         {isEditing ? (
           <TextInput
             testID={field === 'note' ? 'note-input' : undefined}
-            className={`text-neutral-800 border-b border-gray-300 flex-1 mr-2 px-0 ${isNote ? 'text-sm min-h-[100px] text-left' : 'font-bold text-base'}`}
+            className={`text-[#4B3B36] border-b border-gray-300 flex-1 mr-2 px-0 ${isNote ? 'text-sm min-h-[100px] text-left' : 'font-bold text-base'}`}
             value={currentValue}
             onChangeText={setCurrentValue}
             autoFocus={true}
@@ -110,7 +110,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
             }}
           />
         ) : (
-          <Text className={`text-base text-neutral-800 ${isNote ? 'text-sm leading-5 mx-5 flex-1 mr-2' : 'font-semibold flex-1 mr-2'}`}>{currentValue}</Text>
+          <Text className={`text-base text-[#4B3B36] ${isNote ? 'text-sm leading-5 mx-5 flex-1 mr-2' : 'font-semibold flex-1 mr-2'}`}>{currentValue}</Text>
         )}
         <TouchableOpacity testID={field === 'note' ? 'note-edit-toggle' : undefined} onPress={handleToggleEdit} className={isNote ? 'self-start' : ''}>
           {isEditing ? <Check size={18} color="#4CAF50" /> : <Edit size={16} color="#888" />}
@@ -294,28 +294,13 @@ setData({
       if (!photosDir.exists) return;
       const items = photosDir.list();
       
-      // Filter and get only folders that contain images
-      const foldersWithImages = await Promise.all(
-        items
-          .filter((item) => item instanceof Directory)
-          .map(async (dir) => {
-            const files = dir.list();
-            const hasImages = files.some(
-              (f) => f instanceof File && (
-                f.name.toLowerCase().endsWith('.jpg') || 
-                f.name.toLowerCase().endsWith('.jpeg') || 
-                f.name.toLowerCase().endsWith('.png')
-              )
-            );
-            return hasImages ? dir.name : null;
-          })
-      );
-      
-      const validFolders = foldersWithImages
-        .filter(folder => folder !== null)
+      // Get all directories (including empty ones)
+      const allFolders = items
+        .filter((item) => item instanceof Directory)
+        .map((dir) => dir.name)
         .sort((a, b) => a.localeCompare(b)); // Case-sensitive sort
         
-      setAvailableFolders(validFolders);
+      setAvailableFolders(allFolders);
     } catch (e) {
       console.error(e);
     }
@@ -550,14 +535,15 @@ if (
   };
 
   // D. Tạo Folder mới
-  const handleCreateFolder = async () => {
+const handleCreateFolder = async () => {
     if (!newItemName.trim()) return;
     try {
       const photosDir = new Directory(Paths.document, 'photos');
       const newDir = new Directory(photosDir, newItemName.trim());
       if (!newDir.exists) {
         newDir.create();
-        await loadFolders();
+        // Thêm folder mới vào state ngay lập tức
+        setAvailableFolders(prev => [...prev, newItemName.trim()].sort((a, b) => a.localeCompare(b)));
         setNewItemName('');
         setIsCreating(false);
       } else {
@@ -809,13 +795,16 @@ try {
               await jsonFile.delete();
             }
 
-            // 3. Cập nhật danh sách ảnh
+// 3. Cập nhật danh sách ảnh
             const newPhotos = photos.filter((uri) => uri !== data.uri);
             setPhotos(newPhotos);
 
-            // 4. Nếu còn ảnh, chuyển đến ảnh trước đó
+            // 4. Luôn xóa cache sau khi xóa ảnh
+            clearFolderCache(data.folder);
+
+// 5. Nếu còn ảnh, chuyển đến ảnh trước đó
             if (newPhotos.length > 0) {
-              const newIndex = Math.max(0, currentPhotoIndex - 1);
+              const newIndex = Math.min(currentPhotoIndex, newPhotos.length - 1);
               setCurrentPhotoIndex(newIndex);
               // Cập nhật PagerView ngay lập tức
               if (pagerRef.current) {
@@ -824,12 +813,9 @@ try {
               await loadPhotoMetadata(newPhotos[newIndex]);
             } else {
               // Nếu không còn ảnh nào, quay về
-              clearFolderCache(data.folder);
               router.back();
               return;
             }
-
-clearFolderCache(data.folder);
             } catch (error) {
               console.error('Lỗi xóa file:', error);
               Alert.alert('Error', 'Could not delete the image.');
@@ -1062,8 +1048,8 @@ onPageSelected={(e) => {
               <View className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center mb-2">
                 <Check size={24} color="white" />
               </View>
-<Text className="text-[#35383E] text-center font-bold">Stored at folder</Text>
-              <Text className="text-[#35383E] text-center font-bold">&quot;{data.session}&quot;</Text>
+<Text className="text-white text-center font-bold">Stored at folder</Text>
+              <Text className="text-white text-center font-bold">&quot;{data.session}&quot;</Text>
             </View>
           </View>
         )}

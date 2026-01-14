@@ -96,7 +96,7 @@ export default function SessionFolderScreen() {
 
               console.log('Checking image:', imageUri, 'exists:', imageFile.exists);
 
-              if (imageFile.exists) {
+if (imageFile.exists) {
                 const metadata = await readMetadata(jsonFile);
                 if (metadata) {
                   scannedPhotos.push({
@@ -108,6 +108,8 @@ export default function SessionFolderScreen() {
                     session: metadata.session || format(new Date(metadata.time), 'yyyy-MM-dd'),
                   });
                 }
+              } else {
+                console.log('Image file not found, skipping:', imageUri);
               }
             })
           );
@@ -313,11 +315,15 @@ export default function SessionFolderScreen() {
                                   });
                                 }}
                               >
-                                <Image
+<Image
                                   source={{ uri: photo.uri }}
                                   className="w-full h-full"
                                   resizeMode="cover"
-                                  onError={(e) => console.log('Image load error:', e.nativeEvent.error, 'uri:', photo.uri)}
+                                  onError={(e) => {
+                                    console.log('Image load error:', e.nativeEvent.error, 'uri:', photo.uri);
+                                    // Xóa cache khi có lỗi load ảnh
+                                    clearFolderCache(folderName!);
+                                  }}
                                 />
                               </TouchableOpacity>
                             </View>

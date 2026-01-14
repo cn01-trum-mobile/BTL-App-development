@@ -54,7 +54,7 @@ export default function GalleryScreen() {
     return false;
   };
 
-  const checkFolderHasPhotos = async (folderName: string): Promise<boolean> => {
+const checkFolderHasPhotos = async (folderName: string): Promise<boolean> => {
     try {
       const photosDir = new Directory(Paths.document, 'photos');
       const folderDir = new Directory(photosDir, folderName);
@@ -75,6 +75,32 @@ export default function GalleryScreen() {
       return hasJpg || hasJson;
     } catch (error) {
       console.error(`Error checking folder ${folderName}:`, error);
+      return false;
+    }
+  };
+
+  // Hàm xóa folder rỗng
+  const deleteEmptyFolder = async (folderName: string): Promise<boolean> => {
+    try {
+      const photosDir = new Directory(Paths.document, 'photos');
+      const folderDir = new Directory(photosDir, folderName);
+      
+      if (!folderDir.exists) {
+        return true; // Folder không tồn tại -> coi như đã xóa
+      }
+      
+      const hasPhotos = await checkFolderHasPhotos(folderName);
+      
+      if (!hasPhotos) {
+        console.log(`Deleting empty folder: ${folderName}`);
+        await folderDir.delete();
+        clearFolderCache(folderName);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`Error deleting empty folder ${folderName}:`, error);
       return false;
     }
   };
@@ -163,7 +189,7 @@ export default function GalleryScreen() {
       const validFolders: string[] = [];
       const allPhotos: GlobalPhotoItem[] = [];
 
-      for (const folderName of folderNames) {
+for (const folderName of folderNames) {
         const hasPhotos = await checkFolderHasPhotos(folderName);
         
         if (hasPhotos) {
@@ -189,7 +215,8 @@ export default function GalleryScreen() {
             swipeAnimations.current[folderName] = new Animated.Value(0);
           }
         } else {
-          console.log(`Skipping folder "${folderName}" as it has no photos.`);
+          // Xóa folder rỗng thay vì chỉ bỏ qua
+          await deleteEmptyFolder(folderName);
         }
       }
 
