@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, FlatList, Dimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { addDays, differenceInMinutes, endOfDay, format, isSameDay, startOfDay, startOfWeek } from 'date-fns';
-import { CalendarPlus } from 'lucide-react-native';
+import { CalendarPlus, Info } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
@@ -20,6 +20,7 @@ export default function Schedule() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentWeekIndex, setCurrentWeekIndex] = useState(50); // Bắt đầu ở giữa (tuần 0 = tuần hiện tại)
   const weekListRef = useRef<FlatList>(null);
+  const [showLegend, setShowLegend] = useState(false);
 
   const { events, loading, loadEvents } = useUnifiedCalendar();
 
@@ -112,10 +113,33 @@ export default function Schedule() {
             <Text style={styles.monthText}>{format(selectedDate, 'MMMM yyyy')}</Text>
           </View>
 
-          <TouchableOpacity testID="add-btn" onPress={handleAddEvent}>
-            <CalendarPlus size={26} color="#3E2C22" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={() => setShowLegend((v) => !v)} style={styles.headerIconBtn} accessibilityLabel="Color legend">
+              <Info size={22} color="#3E2C22" />
+            </TouchableOpacity>
+            <TouchableOpacity testID="add-btn" onPress={handleAddEvent} style={styles.headerIconBtn} accessibilityLabel="Add event">
+              <CalendarPlus size={26} color="#3E2C22" />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {showLegend && (
+          <View style={styles.legendCard}>
+            <Text style={styles.legendTitle}>Notes:</Text>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#A44063' }]} />
+              <Text style={styles.legendText}>Pink: Default events</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#AC3C00' }]} />
+              <Text style={styles.legendText}>Orange: In-app (not synced)</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#42160dbf' }]} />
+              <Text style={styles.legendText}>Brown: Synced to cloud</Text>
+            </View>
+          </View>
+        )}
       </View>
       <View style={styles.weekContainer}>
         <FlatList
@@ -297,6 +321,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerIconBtn: {
+    padding: 6,
+    borderRadius: 12,
+  },
+  legendCard: {
+    marginTop: 10,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  legendTitle: {
+    fontFamily: 'Poppins-Bold',
+    color: '#3E2C22',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 10,
+    marginRight: 8,
+  },
+  legendText: {
+    fontFamily: 'Poppins-Regular',
+    color: '#374151',
+    fontSize: 12,
   },
   addButton: {
     flexDirection: 'row',

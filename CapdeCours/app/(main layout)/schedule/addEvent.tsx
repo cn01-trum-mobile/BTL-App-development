@@ -6,7 +6,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Clock } from 'lucide-react-native';
 import { createEvent, updateEvent, deleteEvent } from '@/app/services/calendarActions';
-import { UnifiedEvent } from '@/app/types/calendarTypes';
+import { RepeatRule, UnifiedEvent } from '@/app/types/calendarTypes';
 import { syncLocalEventsWithBackend } from '@/app/services/localCalendarService';
 
 export default function AddEventScreen() {
@@ -24,6 +24,13 @@ export default function AddEventScreen() {
   // Tách giờ bắt đầu và kết thúc riêng để dễ chỉnh (như design)
   const [startTime, setStartTime] = useState(eventToEdit ? new Date(eventToEdit.startDate) : new Date());
   const [endTime, setEndTime] = useState(eventToEdit ? new Date(eventToEdit.endDate) : new Date(new Date().setHours(new Date().getHours() + 1)));
+
+  // Repeat (chỉ áp dụng cho event do app tạo)
+  const [repeat, setRepeat] = useState<RepeatRule | undefined>(() => {
+    if (!eventToEdit?.repeat) return undefined;
+    const interval = Number.isFinite(eventToEdit.repeat.interval) && eventToEdit.repeat.interval > 0 ? eventToEdit.repeat.interval : 1;
+    return { ...eventToEdit.repeat, interval };
+  });
 
   // State hiển thị Picker (cho Android)
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -55,6 +62,7 @@ export default function AddEventScreen() {
           title,
           startDate: finalStartDate,
           endDate: finalEndDate,
+          repeat,
         });
         // Sync ngay để cập nhật trạng thái (nếu đã login)
         await syncLocalEventsWithBackend();
@@ -66,6 +74,7 @@ export default function AddEventScreen() {
             title,
             startDate: finalStartDate,
             endDate: finalEndDate,
+            repeat,
           },
           'LOCAL'
         ); // Mặc định tạo vào Local
@@ -118,15 +127,8 @@ export default function AddEventScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={styles.pageTitle}>{isEditing ? 'Edit event' : 'Add new event'}</Text>
 
         {/* --- FORM --- */}
@@ -170,6 +172,38 @@ export default function AddEventScreen() {
           {Platform.OS === 'android' && <Clock size={20} color="#666" />}
         </TouchableOpacity>
         {Platform.OS === 'android' && renderDatePicker(endTime, showEndTimePicker, setShowEndTimePicker, setEndTime, 'time')}
+
+        {/* Repeat */}
+        {(!isEditing || eventToEdit?.source !== 'NATIVE') && (
+          <>
+            <Text style={styles.label}>Repeat</Text>
+            <View style={styles.repeatRow}>
+              {(
+                [
+                  { key: 'none', label: 'None' },
+                  { key: 'DAILY', label: 'Daily' },
+                  { key: 'WEEKLY', label: 'Weekly' },
+                  { key: 'MONTHLY', label: 'Monthly' },
+                  { key: 'YEARLY', label: 'Yearly' },
+                ] as const
+              ).map((opt) => {
+                const active = opt.key === 'none' ? !repeat : repeat?.frequency === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.repeatChip, active && styles.repeatChipActive]}
+                    onPress={() => {
+                      if (opt.key === 'none') setRepeat(undefined);
+                      else setRepeat({ frequency: opt.key, interval: 1 });
+                    }}
+                  >
+                    <Text style={[styles.repeatChipText, active && styles.repeatChipTextActive]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         {/* --- ACTION BUTTONS --- */}
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
@@ -281,5 +315,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textTransform: 'uppercase',
+  },
+  repeatRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  repeatChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: '#fff',
+  },
+  repeatChipActive: {
+    borderColor: '#AC3C00',
+    backgroundColor: '#FFE8BB',
+  },
+  repeatChipText: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 13,
+    color: '#333',
+  },
+  repeatChipTextActive: {
+    color: '#AC3C00',
+    fontWeight: 'bold',
   },
 });

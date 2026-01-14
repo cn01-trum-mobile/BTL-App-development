@@ -38,7 +38,9 @@ export const useUnifiedCalendar = () => {
 
             source: 'NATIVE' as const,
             calendarId: e.calendarId,
-            color: '#2196F3',
+            // Hồng: lịch mặc định (native)
+            color: '#A44063',
+            instanceStartDate: new Date(e.startDate).toISOString(),
           }));
         }
       }
@@ -64,7 +66,8 @@ export const useUnifiedCalendar = () => {
             location: e.location || undefined,
             notes: e.notes || undefined,
             source: 'REMOTE' as const,
-            color: '#10B981',
+            // Nâu: đã sync cloud
+            color: '#42160dbf',
           }));
       } catch (err) {
         // Nếu chưa login hoặc backend lỗi thì chỉ log, không làm app crash

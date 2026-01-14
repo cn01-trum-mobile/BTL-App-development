@@ -3,6 +3,14 @@
 // Trạng thái đồng bộ của event tạo trong app
 export type SyncStatus = 'pendingCreate' | 'pendingUpdate' | 'pendingDelete' | 'synced';
 
+// Quy tắc lặp lại đơn giản (giống Google Calendar - bản cơ bản)
+export type RepeatFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+export interface RepeatRule {
+  frequency: RepeatFrequency;
+  interval: number; // mỗi N ngày/tuần/tháng/năm
+  until?: string; // ISO string (optional)
+}
+
 // Event "của app" được lưu trong AsyncStorage
 export interface LocalAppEvent {
   // ID local luôn tồn tại, dùng để tham chiếu trong app
@@ -28,6 +36,9 @@ export interface LocalAppEvent {
 
   // Đánh dấu event đã bị disconnect (logout) nhưng vẫn giữ remoteId để tránh duplicate khi login lại
   isDisconnected?: boolean;
+
+  // Lặp lại (chỉ áp dụng cho event do app tạo). Backend hiện chưa hỗ trợ nên chỉ lưu local.
+  repeat?: RepeatRule;
 }
 
 // Kiểu dùng cho UI (Schedule, AddEvent)
@@ -55,4 +66,10 @@ export interface UnifiedEvent {
 
   // Dùng cho source NATIVE để biết thuộc tài khoản email nào
   calendarId?: string;
+
+  // Lặp lại (local/app)
+  repeat?: RepeatRule;
+
+  // Dùng để update recurring instance của native an toàn
+  instanceStartDate?: string; // ISO string
 }
