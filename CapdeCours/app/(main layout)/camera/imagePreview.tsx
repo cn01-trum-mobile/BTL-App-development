@@ -90,16 +90,22 @@ const saveToGallery = useCallback(async () => {
 }, [uri, events, sanitizeFolderName]);
 
 
-  const savePhoto = useCallback(async () => {
+const savePhoto = useCallback(async () => {
     if (!uri) return;
+    
+    // Show loading immediately
+    setAction({
+      icon: <ActivityIndicator size={'small'} color={'white'} className="p-0.5" />,
+      onPress: () => {},
+    });
+
     const now = new Date();
-    const timestamp = now.getTime(); // Lấy timestamp (ms) để đảm bảo duy nhất
+    const timestamp = now.getTime();
 
     // Gi nguyên ảnh gốc, không xoay tự động
     let processedUri = uri;
 
     // 1. XỬ LÝ FOLDER (Tên môn)
-    // Logic này vẫn hoạt động tốt vì UnifiedEvent cũng có startDate/endDate/title giống Calendar.Event
     const currentEvent = events.find((event) => {
       const start = new Date(event.startDate);
       const end = new Date(event.endDate);
@@ -115,20 +121,19 @@ const saveToGallery = useCallback(async () => {
     const session = format(now, 'yyyy-MM-dd');
 
     // 3. XỬ LÝ NAME (Tên file chuẩn)
-    // Format: TenMon-2025-12-24-17033232323
     const name = `${folder}-${session}-${timestamp}`;
 
     // 4. XỬ LÝ TIME (Thời gian chụp readable)
     const time = now.toISOString();
 
     try {
+      // Batch file operations
       const photosDir = new Directory(Paths.document, 'photos');
       const subjectDir = new Directory(photosDir, folder);
 
       if (!photosDir.exists) photosDir.create();
       if (!subjectDir.exists) subjectDir.create();
 
-      // Đặt tên file vật lý theo biến 'name'
       const fileName = `${name}.jpg`;
       const jsonName = `${name}.json`;
 
@@ -136,22 +141,18 @@ const saveToGallery = useCallback(async () => {
       const destFile = new File(subjectDir, fileName);
       const jsonFile = new File(subjectDir, jsonName);
 
-      // Copy ảnh (đã xử lý rotation)
+      // Copy ảnh
       sourceFile.copy(destFile);
 
-      // Tạo Metadata
+      // Tạo Metadata và ghi JSON
       const metadata = {
-        name: name, // Format: Folder-Session-Timestamp
-        folder: folder, // Tên môn
-        session: session, // Ngày
-        time: time, // Thời gian chụp (ISO)
-        note: note, // Ghi chú
+        name: name,
+        folder: folder,
+        session: session,
+        time: time,
+        note: note,
       };
-
-      // Ghi file JSON
       jsonFile.write(JSON.stringify(metadata, null, 2));
-
-      // Không tự lưu vào gallery nữa, chỉ lưu vào app storage
 
       const newPhotoItem: PhotoItem = {
         uri: destFile.uri,
@@ -162,26 +163,17 @@ const saveToGallery = useCallback(async () => {
         session: session,
       };
 
-await addPhotoToCache(folder, newPhotoItem);
-      console.log('Photo saved and cached:', fileName, 'folder:', folder, 'session:', session);
+      await addPhotoToCache(folder, newPhotoItem);
       
-      // Debug: Verify cache was updated
-      const updatedCache = await getPhotosFromCache(folder);
-      console.log('Cache after save - total photos:', updatedCache?.length || 0);
-      console.log('New photo in cache:', updatedCache?.some(p => p.uri === destFile.uri) || false);
-
-// UI Feedback
+      // UI Feedback - batch state updates
+      const fileNameForMessage = fileName;
       setAction({
         icon: <Check size={24} color={'white'} strokeWidth={2} />,
-        onPress: () => {
-          // Không làm gì cả để tránh double-click
-        },
+        onPress: () => {},
       });
       setVisible(true);
-      // Thông báo cho người dùng biết đã lưu
-      setMessage(`Saved: ${fileName}`);
+      setMessage(`Saved: ${fileNameForMessage}`);
       
-      // Tự động quay về trang camera sau 1.5 giây để tránh double-click
       setTimeout(() => {
         router.replace('/camera');
         resetAction();
@@ -288,7 +280,14 @@ await addPhotoToCache(folder, newPhotoItem);
           <X size={24} strokeWidth={3} color={'#714A36'} />
         </TouchableOpacity>
         {/* Image */}
-        <Image source={{ uri }} className="flex-1 rounded-xl overflow-hidden" resizeMode="contain" />
+        <Image 
+          source={{ uri }} 
+          className="flex-1 rounded-xl overflow-hidden" 
+          resizeMode="cover"
+          style={{ width: '100%', height: '100%' }}
+          fadeDuration={0}
+          onLoad={() => console.log('Image loaded')}
+        />
         {/* Note Toggle */}
         <View className="absolute bottom-5 right-5">
           <TouchableOpacity
