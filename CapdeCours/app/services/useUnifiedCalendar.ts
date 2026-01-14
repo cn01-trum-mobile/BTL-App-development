@@ -71,7 +71,7 @@ export const useUnifiedCalendar = () => {
           }));
       } catch (err) {
         // Nếu chưa login hoặc backend lỗi thì chỉ log, không làm app crash
-        console.warn('Không load được event từ backend:', err);
+        console.log('Không load được event từ backend:', err);
       }
 
       // 4. GỘP + DEDUP theo id (ưu tiên bản local/remote trong AsyncStorage vì có thể chứa thay đổi pending)

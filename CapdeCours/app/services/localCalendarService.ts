@@ -72,7 +72,16 @@ const addPeriod = (d: Date, frequency: RepeatRule['frequency'], interval: number
 // Expand event lặp lại thành các instance trong khoảng (chỉ dùng cho UI)
 const expandRecurringUnifiedEventsInRange = (e: LocalAppEvent, rangeStart: Date, rangeEnd: Date): UnifiedEvent[] => {
   const cfg = parseRepeat(e.repeat);
-  if (!cfg) return [toUnifiedEvent(e)];
+  // Event không lặp lại: chỉ trả về nếu nằm trong khoảng [rangeStart, rangeEnd]
+  if (!cfg) {
+    const s = new Date(e.startDate).getTime();
+    const startMs = rangeStart.getTime();
+    const endMs = rangeEnd.getTime();
+    if (s >= startMs && s <= endMs) {
+      return [toUnifiedEvent(e)];
+    }
+    return [];
+  }
 
   const baseStart = new Date(e.startDate);
   const baseEnd = new Date(e.endDate);
