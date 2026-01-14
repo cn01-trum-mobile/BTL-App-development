@@ -18,7 +18,7 @@ import { useUnifiedCalendar } from '@/app/services/useUnifiedCalendar';
 // ---------------------------------
 
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
-import { PhotoItem, addPhotoToCache } from '@/utils/photoCache';
+import { PhotoItem, addPhotoToCache, getPhotosFromCache } from '@/utils/photoCache';
 
 export default function ImagePreviewScreen() {
   const { uri } = useLocalSearchParams<{ uri: string }>();
@@ -162,8 +162,13 @@ const saveToGallery = useCallback(async () => {
         session: session,
       };
 
-      await addPhotoToCache(folder, newPhotoItem);
+await addPhotoToCache(folder, newPhotoItem);
       console.log('Photo saved and cached:', fileName, 'folder:', folder, 'session:', session);
+      
+      // Debug: Verify cache was updated
+      const updatedCache = await getPhotosFromCache(folder);
+      console.log('Cache after save - total photos:', updatedCache?.length || 0);
+      console.log('New photo in cache:', updatedCache?.some(p => p.uri === destFile.uri) || false);
 
 // UI Feedback
       setAction({

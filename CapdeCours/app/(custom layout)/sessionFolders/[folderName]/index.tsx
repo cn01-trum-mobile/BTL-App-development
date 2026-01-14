@@ -180,14 +180,28 @@ if (imageFile.exists) {
     }
   }, [searchQuery]); // RIÊNG BIỆT với loadAndGroupPhotos
 
-  // useFocusEffect chỉ để cleanup hoặc xử lý đặc biệt
+  // useFocusEffect để auto-refresh khi màn hình được focus lại
   useFocusEffect(
     useCallback(() => {
-      // Không gọi loadAndGroupPhotos ở đây để tránh trùng lặp
-      return () => {
-        // Cleanup nếu cần
+      // Load lại dữ liệu khi màn hình được focus (sau khi xóa/chụp ảnh)
+      // Clear cache trước để đảm bảo load dữ liệu mới nhất từ file system
+      const refreshData = async () => {
+        try {
+          // Clear cache để force reload từ file system
+          await clearFolderCache(folderName!);
+          // Load lại với force reload
+          await loadAndGroupPhotos(true);
+        } catch (error) {
+          console.error('Error refreshing session data:', error);
+        }
       };
-    }, [folderName])
+      
+      const timer = setTimeout(refreshData, 100);
+      
+      return () => {
+        clearTimeout(timer);
+      };
+    }, [folderName, loadAndGroupPhotos])
   );
 
   const onRefresh = useCallback(() => {
