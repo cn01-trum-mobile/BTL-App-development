@@ -9,7 +9,7 @@ import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
 import * as MediaLibrary from 'expo-media-library';
 import FolderCard from '@/components/Folder';
-import { clearFolderCache, updateCacheAfterMove, getPhotosFromCache, savePhotosToCache } from '@/utils/photoCache';
+import { clearFolderCache, updateCacheAfterMove, getPhotosFromCache, savePhotosToCache, PhotoItem as PhotoItemType } from '@/utils/photoCache';
 import PagerView from 'react-native-pager-view';
 
 // --- INTERFACES ---
@@ -801,8 +801,36 @@ try {
 
             // 4. Luôn xóa cache sau khi xóa ảnh
             clearFolderCache(data.folder);
+            
+            // Cập nhật cache với danh sách ảnh mới (để sessionFolders có dữ liệu mới nhất)
+            try {
+              const updatedPhotosPromises = newPhotos.map(async (photoUri) => {
+                const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
+                const jsonFile = new File(jsonPath);
+                
+                if (jsonFile.exists) {
+                  const content = await jsonFile.text();
+                  const metadata = JSON.parse(content);
+                  return {
+                    uri: photoUri,
+                    name: new File(photoUri).name,
+                    timestamp: new Date(metadata.time || new Date()).getTime(),
+                    note: metadata.note || '',
+                    subject: metadata.subject || data.folder,
+                    session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
+                  };
+                }
+                return null;
+              });
+              
+              const allResults = await Promise.all(updatedPhotosPromises);
+              const resolvedPhotos = allResults.filter((item) => item !== null) as PhotoItemType[];
+              await savePhotosToCache(data.folder, resolvedPhotos);
+            } catch (cacheError) {
+              console.error('Error updating cache after deletion:', cacheError);
+            }
 
-// 5. Nếu còn ảnh, chuyển đến ảnh trước đó
+            // 5. Nếu còn ảnh, chuyển đến ảnh trước đó
             if (newPhotos.length > 0) {
               const newIndex = Math.min(currentPhotoIndex, newPhotos.length - 1);
               setCurrentPhotoIndex(newIndex);
