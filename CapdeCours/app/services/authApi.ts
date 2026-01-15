@@ -1,6 +1,7 @@
 import { storeData, getData } from '@/utils/asyncStorage';
 
-const API_URL = 'https://capdecours.tuanemtramtinh.io.vn';
+// const API_URL = 'https://capdecours.tuanemtramtinh.io.vn';
+const API_URL = 'https://edd57004921c.ngrok-free.app';
 const TOKEN_KEY = 'AUTH_TOKEN';
 const USERNAME_KEY = 'AUTH_USERNAME';
 
@@ -37,13 +38,13 @@ export const authApi = {
         },
         body: JSON.stringify({ name, username, password }),
       });
-  
+
       const data = await response.json();
-  
+
       if (!response.ok) {
         throw new Error(data.message || 'Registration failed');
       }
-      
+
       return data;
     } catch (error) {
       throw error;

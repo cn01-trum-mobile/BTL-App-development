@@ -55,7 +55,7 @@ export const useUnifiedCalendar = () => {
         remoteFromBackend = remoteEvents
           .filter((e: any) => {
             const eStart = new Date(e.startDate).getTime();
-            return eStart >= start.getTime() && eStart <= end.getTime();
+            return eStart >= start.getTime() && eStart <= end.getTime() && !e.repeat;
           })
           .map((e: any) => ({
             id: `remote_${e.id}`,
@@ -68,7 +68,9 @@ export const useUnifiedCalendar = () => {
             source: 'REMOTE' as const,
             // Nâu: đã sync cloud
             color: '#42160dbf',
+            repeat: e.repeat || undefined,
           }));
+        // console.log('remoteFromBackend', remoteFromBackend);
       } catch (err) {
         // Nếu chưa login hoặc backend lỗi thì chỉ log, không làm app crash
         console.log('Không load được event từ backend:', err);
@@ -91,7 +93,7 @@ export const useUnifiedCalendar = () => {
       });
 
       const merged = Array.from(map.values()).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-
+      console.log('merged', merged);
       setEvents(merged);
     } catch (error) {
       console.error('Lỗi load lịch:', error);

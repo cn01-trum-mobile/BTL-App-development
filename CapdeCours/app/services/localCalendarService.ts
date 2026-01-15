@@ -126,7 +126,9 @@ const expandRecurringUnifiedEventsInRange = (e: LocalAppEvent, rangeStart: Date,
 // Lấy UnifiedEvent trong khoảng ngày (đã bỏ deleted)
 export const getLocalUnifiedEventsInRange = async (start: Date, end: Date): Promise<UnifiedEvent[]> => {
   const all = await loadRawEvents();
-  return all.filter((e) => !e.deleted).flatMap((e) => expandRecurringUnifiedEventsInRange(e, start, end));
+  const result = all.filter((e) => !e.deleted).flatMap((e) => expandRecurringUnifiedEventsInRange(e, start, end));
+  console.log('result', result);
+  return result;
 };
 
 // Tạo event mới local (offline-first)
@@ -230,7 +232,8 @@ export const syncLocalEventsWithBackend = async () => {
           endDate: e.endDate,
           notes: e.notes,
           location: e.location,
-        });
+          repeat: e.repeat || undefined,
+        } as any);
 
         events[i] = {
           ...e,
@@ -245,6 +248,7 @@ export const syncLocalEventsWithBackend = async () => {
           endDate: e.endDate,
           notes: e.notes,
           location: e.location,
+          repeat: e.repeat || undefined,
         } as any);
 
         events[i] = {
@@ -254,7 +258,10 @@ export const syncLocalEventsWithBackend = async () => {
         changed = true;
       } else if (e.syncStatus === 'pendingDelete' && e.remoteId) {
         try {
-          await calendarApi.delete(e.remoteId);
+          if (!e.isDisconnected) {
+            await calendarApi.delete(e.remoteId);
+          }
+
           // Sau khi xóa thành công trên server thì xóa hẳn local
           events.splice(i, 1);
           i--;
@@ -354,6 +361,7 @@ export const syncCloudEventsToLocal = async () => {
           existingLocal.endDate !== cloudEvent.endDate ||
           existingLocal.notes !== (cloudEvent.notes || undefined) ||
           existingLocal.location !== (cloudEvent.location || undefined) ||
+          existingLocal.repeat !== (cloudEvent.repeat || undefined) ||
           existingLocal.isDisconnected; // Cần update nếu đang disconnected để reconnect
 
         if (needsUpdate) {
@@ -366,6 +374,7 @@ export const syncCloudEventsToLocal = async () => {
               endDate: cloudEvent.endDate,
               notes: cloudEvent.notes || undefined,
               location: cloudEvent.location || undefined,
+              repeat: cloudEvent.repeat || undefined,
               syncStatus: 'synced', // Đã sync với cloud
               isDisconnected: false, // Clear flag disconnected khi login lại
               updatedAt: nowIso(),
@@ -383,6 +392,7 @@ export const syncCloudEventsToLocal = async () => {
           endDate: cloudEvent.endDate,
           notes: cloudEvent.notes || undefined,
           location: cloudEvent.location || undefined,
+          repeat: cloudEvent.repeat || undefined,
           syncStatus: 'synced', // Đã sync với cloud
           updatedAt: nowIso(),
         };
