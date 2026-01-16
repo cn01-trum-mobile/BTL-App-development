@@ -130,6 +130,7 @@ describe('ImagePreviewScreen', () => {
   });
 
   it('navigates back when alert is dismissed', async () => {
+    jest.useFakeTimers();
     const { getByText } = render(<ImagePreviewScreen />);
 
     // 1. Trigger the save action
@@ -139,10 +140,19 @@ describe('ImagePreviewScreen', () => {
     });
 
     // 2. Press the alert to dismiss it
-    fireEvent.press(getByText(/Saved:/));
+    await act(async () => {
+      fireEvent.press(getByText(/Saved:/));
+    });
 
-    // 3. Assert using the imported 'router' object
+    // 3. Fast forward timers to trigger the auto-dismiss and navigation
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    // 4. Assert using the imported 'router' object
     expect(router.replace).toHaveBeenCalledWith('/camera');
+    
+    jest.useRealTimers();
   });
 
   it('discard button navigates back', () => {

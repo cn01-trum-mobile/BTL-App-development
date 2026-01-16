@@ -59,16 +59,12 @@ describe('PhotoCache Utils', () => {
     });
 
     it('should catch error (Simulated Failure)', async () => {
-      // MOCK console.error để ẩn dòng chữ đỏ "Error: Fail"
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
       // Giả lập lỗi
       (AsyncStorage.setItem as jest.Mock).mockRejectedValue(new Error('Fail'));
 
       await savePhotosToCache(mockFolder, [mockPhoto]);
 
-      expect(consoleSpy).toHaveBeenCalled(); // Code phải log lỗi thì mới đúng
-      consoleSpy.mockRestore();
+      expect(console.error).toHaveBeenCalled(); // Code phải log lỗi thì mới đúng
     });
   });
 

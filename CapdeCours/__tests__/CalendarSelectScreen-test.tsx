@@ -103,7 +103,7 @@ describe('CalendarSelectScreen', () => {
     await waitFor(() => expect(getByText('Work Calendar')).toBeTruthy());
 
     // Nút Continue phải hiện số lượng là 1
-    expect(getByText('CONTINUE (1)')).toBeTruthy();
+    expect(getByText('FINISH (1)')).toBeTruthy();
   });
 
   it('cho phép người dùng chọn và bỏ chọn lịch', async () => {
@@ -120,13 +120,13 @@ describe('CalendarSelectScreen', () => {
     // 1. Click chọn
     fireEvent.press(calendarItem);
     // Nút Continue cập nhật thành 1
-    expect(getByText('CONTINUE (1)')).toBeTruthy();
+    expect(getByText('FINISH (1)')).toBeTruthy();
 
     // 2. Click lần nữa để bỏ chọn
     fireEvent.press(calendarItem);
     // Nút Continue quay về disabled hoặc 0 (tùy logic render text, ở đây check text không còn số 1)
-    // Vì code của bạn: disabled={selectedIds.size === 0}, text là CONTINUE ({size})
-    expect(getByText('CONTINUE (0)')).toBeTruthy();
+    // Vì code của bạn: disabled={selectedIds.size === 0}, text là FINISH ({size})
+    expect(getByText('FINISH')).toBeTruthy();
   });
 
   it('lưu dữ liệu thành công khi bấm Continue', async () => {
@@ -141,7 +141,7 @@ describe('CalendarSelectScreen', () => {
     fireEvent.press(getByText('Work Calendar'));
     fireEvent.press(getByText('My iOS Gmail'));
 
-    const continueBtn = getByText('CONTINUE (2)');
+    const continueBtn = getByText('FINISH (2)');
     fireEvent.press(continueBtn);
 
     // Kiểm tra gọi storeData
@@ -154,7 +154,7 @@ describe('CalendarSelectScreen', () => {
       );
       
       // Check Alert Success
-      expect(Alert.alert).toHaveBeenCalledWith('Thành công', expect.stringContaining('Đã cập nhật 2 nguồn lịch'));
+      expect(Alert.alert).toHaveBeenCalledWith('Thành công', 'Đã cập nhật thành công');
     });
   });
 

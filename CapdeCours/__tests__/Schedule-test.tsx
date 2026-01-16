@@ -17,6 +17,7 @@ jest.mock('@react-navigation/native', () => ({
 
 // 3. Mock Icon (Fix lỗi lucide crash)
 jest.mock('lucide-react-native', () => ({
+  Info: (props: any) => <>{'InfoIcon'}</>,
   CalendarPlus: (props: any) => <>{'CalendarPlusIcon'}</>,
 }));
 
