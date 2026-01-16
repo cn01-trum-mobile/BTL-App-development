@@ -20,7 +20,7 @@ module.exports = {
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
-      package: 'com.vck2004.CapDeCours',
+      package: 'com.lethanhbaotran.CapDeCours',
       permissions: ['INTERNET'],
       usesCleartextTraffic: true,
       targetSdkVersion: 27,
@@ -62,16 +62,16 @@ module.exports = {
     extra: {
       router: {},
       eas: {
-        projectId: '145725e0-99a3-48bd-8a8e-e03da7d4cd16',
+        projectId: 'ef10f305-4565-4542-b05c-f1c575b74917',
       },
       apiUrl: process.env.API_URL || 'https://capdecours.tuanemtramtinh.io.vn',
     },
-    owner: 'vck2004',
+    owner: 'lethanhbaotran',
     runtimeVersion: {
       policy: 'appVersion',
     },
     updates: {
-      url: 'https://u.expo.dev/145725e0-99a3-48bd-8a8e-e03da7d4cd16',
+      url: 'https://u.expo.dev/ef10f305-4565-4542-b05c-f1c575b74917',
     },
   },
 };

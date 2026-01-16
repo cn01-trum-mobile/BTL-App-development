@@ -1,7 +1,7 @@
 import { storeData, getData } from '@/utils/asyncStorage';
 
 // const API_URL = 'https://capdecours.tuanemtramtinh.io.vn';
-const API_URL = 'https://edd57004921c.ngrok-free.app';
+const API_URL = 'https://3f2c16f8bfb4.ngrok-free.app';
 const TOKEN_KEY = 'AUTH_TOKEN';
 const USERNAME_KEY = 'AUTH_USERNAME';
 
