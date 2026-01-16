@@ -2,7 +2,8 @@ import { UnifiedEvent } from '../types/calendarTypes';
 import { authApi } from './authApi';
 import Constants from 'expo-constants';
 
-const API_URL = "http://35.222.243.209";
+// const API_URL = 'https://capdecours.tuanemtramtinh.io.vn';
+const API_URL = 'https://3f2c16f8bfb4.ngrok-free.app';
 
 // Hàm helper fetch
 const fetchWithAuth = async (endpoint: string, options: any = {}) => {

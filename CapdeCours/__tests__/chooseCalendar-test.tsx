@@ -116,7 +116,7 @@ describe('CalendarSelectScreen', () => {
 
     await waitFor(() => {
       // Check if button count reflects the saved item
-      expect(getByText('CONTINUE (1)')).toBeTruthy();
+      expect(getByText('FINISH (1)')).toBeTruthy();
     });
   });
 
@@ -137,29 +137,29 @@ describe('CalendarSelectScreen', () => {
     // Wait for list to load
     await waitFor(() => expect(getByText('Calendar A')).toBeTruthy());
 
-    // 1. Initial State: 0 selected
-    expect(getByText('CONTINUE (0)')).toBeTruthy();
+    // 1. Initial State: 0 selected (shows just FINISH, no count)
+    expect(getByText('FINISH')).toBeTruthy();
 
     // 2. Select 'Calendar A'
     fireEvent.press(getByText('Calendar A'));
-    expect(getByText('CONTINUE (1)')).toBeTruthy();
+    expect(getByText('FINISH (1)')).toBeTruthy();
 
     // 3. Select 'Calendar B'
     fireEvent.press(getByText('Calendar B'));
-    expect(getByText('CONTINUE (2)')).toBeTruthy();
+    expect(getByText('FINISH (2)')).toBeTruthy();
 
     // 4. Deselect 'Calendar A'
     fireEvent.press(getByText('Calendar A'));
-    expect(getByText('CONTINUE (1)')).toBeTruthy();
+    expect(getByText('FINISH (1)')).toBeTruthy();
 
     // 5. Press Continue
-    fireEvent.press(getByText(/CONTINUE/));
+    fireEvent.press(getByText(/FINISH/));
 
     // 6. Verify Save
     await waitFor(() => {
       // Should save 'B' (since A was deselected)
       expect(storeData).toHaveBeenCalledWith('USER_CALENDAR_IDS', JSON.stringify(['B']));
-      expect(Alert.alert).toHaveBeenCalledWith('Thành công', expect.stringContaining('Đã cập nhật 1 nguồn lịch'));
+      expect(Alert.alert).toHaveBeenCalledWith('Thành công', 'Đã cập nhật thành công');
     });
   });
 
@@ -172,9 +172,9 @@ describe('CalendarSelectScreen', () => {
     await waitFor(() => expect(getByText('A')).toBeTruthy());
 
     // Press Continue while selection is 0
-    fireEvent.press(getByText(/CONTINUE/));
+    fireEvent.press(getByText(/FINISH/));
 
-    // Ensure storeData was NOT called
-    expect(storeData).not.toHaveBeenCalled();
+    // Ensure storeData was called with empty array
+    expect(storeData).toHaveBeenCalledWith('USER_CALENDAR_IDS', '[]');
   });
 });

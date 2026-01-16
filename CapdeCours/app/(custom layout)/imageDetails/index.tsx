@@ -1,16 +1,16 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert} from 'react-native';
+import { View, Text, Image, TouchableOpacity, TextInput, Keyboard, ActivityIndicator, Alert } from 'react-native';
 import BottomSheet, { BottomSheetScrollView, BottomSheetHandleProps } from '@gorhom/bottom-sheet';
-import { Trash2, Edit, Check, Plus, ChevronLeft, X, Folder } from 'lucide-react-native';
+import { Trash2, Edit, Check, Plus, ChevronLeft, X, Folder, RotateCw, Download } from 'lucide-react-native';
 import BottomNav from '@/components/BottomNav';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler } from 'react-native-gesture-handler';
 import { File, Directory, Paths } from 'expo-file-system';
 import { format } from 'date-fns';
+import * as MediaLibrary from 'expo-media-library';
 import FolderCard from '@/components/Folder';
-import { clearFolderCache, updateCacheAfterMove,  getPhotosFromCache, savePhotosToCache } from '@/utils/photoCache';
+import { clearFolderCache, updateCacheAfterMove, getPhotosFromCache, savePhotosToCache, PhotoItem as PhotoItemType } from '@/utils/photoCache';
 import PagerView from 'react-native-pager-view';
-
 
 // --- INTERFACES ---
 interface EditableFieldProps {
@@ -24,13 +24,14 @@ interface EditableFieldProps {
 
 interface PhotoItemProps {
   uri: string;
+  rotation?: number;
 }
 
 // --- Component Handle ---
 const CustomHandle: React.FC<BottomSheetHandleProps> = () => (
   <View className="items-center -mt-5 pb-2">
     <View className="bg-[#6E4A3F] px-10 py-2 rounded-lg shadow-sm">
-      <Text className="text-white font-bold text-lg">Details</Text>
+      <Text className="text-[#FFF8E3] font-bold text-lg">Details</Text>
     </View>
   </View>
 );
@@ -67,7 +68,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
     return (
       <View className="mb-6 mx-3">
         <Text className="font-bold text-[#6E4A3F] mb-1">{label}</Text>
-        <Text className="text-base font-semibold text-neutral-800 pt-1">{initialValue}</Text>
+        <Text className="text-base font-semibold text-[#4B3B36] pt-1">{initialValue}</Text>
       </View>
     );
   }
@@ -77,16 +78,14 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
       <View className="mb-6 mx-3">
         <Text className="text-[#6E4A3F] mb-1 font-bold">{label}</Text>
         <View className="flex-row justify-between items-center py-1">
-          <Text className="text-base font-semibold text-neutral-800 flex-1 mr-2">
-             {/* Hiển thị Folder hiện tại */}
-             {currentValue} 
+          <Text className="text-base font-semibold text-[#4B3B36] flex-1 mr-2">
+            {/* Hiển thị Folder hiện tại */}
+            {currentValue}
           </Text>
-          
+
           {/* NÚT BÚT CHÌ ĐỂ SỬA */}
-          <TouchableOpacity 
-             onPress={() => onEditTrigger('folder')}
-          >
-            <Edit size={16} color="#888" /> 
+          <TouchableOpacity onPress={() => onEditTrigger('folder')}>
+            <Edit size={16} color="#888" />
           </TouchableOpacity>
         </View>
       </View>
@@ -100,7 +99,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
         {isEditing ? (
           <TextInput
             testID={field === 'note' ? 'note-input' : undefined}
-            className={`text-neutral-800 border-b border-gray-300 flex-1 mr-2 px-0 ${isNote ? 'text-sm min-h-[100px] text-left' : 'font-bold text-base'}`}
+            className={`text-[#4B3B36] border-b border-gray-300 flex-1 mr-2 px-0 ${isNote ? 'text-sm min-h-[100px] text-left' : 'font-bold text-base'}`}
             value={currentValue}
             onChangeText={setCurrentValue}
             autoFocus={true}
@@ -111,13 +110,9 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
             }}
           />
         ) : (
-          <Text className={`text-base text-neutral-800 ${isNote ? 'text-sm leading-5 mx-5 flex-1 mr-2' : 'font-semibold flex-1 mr-2'}`}>{currentValue}</Text>
+          <Text className={`text-base text-[#4B3B36] ${isNote ? 'text-sm leading-5 mx-5 flex-1 mr-2' : 'font-semibold flex-1 mr-2'}`}>{currentValue}</Text>
         )}
-        <TouchableOpacity
-          testID={field === 'note' ? 'note-edit-toggle' : undefined}
-          onPress={handleToggleEdit}
-          className={isNote ? 'self-start' : ''}
-        >
+        <TouchableOpacity testID={field === 'note' ? 'note-edit-toggle' : undefined} onPress={handleToggleEdit} className={isNote ? 'self-start' : ''}>
           {isEditing ? <Check size={18} color="#4CAF50" /> : <Edit size={16} color="#888" />}
         </TouchableOpacity>
       </View>
@@ -125,20 +120,52 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, initialValue, fiel
   );
 };
 
-
-const PhotoItem = React.memo(({ uri }: PhotoItemProps) => (
-  <View className="flex-1 bg-black justify-center items-center overflow-hidden">
-    <Image 
-      source={{ uri }} 
-      className="w-full h-full"
-      resizeMode="cover"
-      fadeDuration={0}
-      progressiveRenderingEnabled={true}
-    />
-  </View>
-), (prevProps, nextProps) => {
-  return prevProps.uri === nextProps.uri;
-});
+const PhotoItem = React.memo(
+  ({ uri, rotation = 0, scale, translateX, translateY, onDoubleTap, onGestureEvent, onHandlerStateChange }: PhotoItemProps & { 
+    scale: number; 
+    translateX: number;
+    translateY: number;
+    onDoubleTap: () => void;
+    onGestureEvent: (event: any) => void;
+    onHandlerStateChange: (event: any) => void;
+  }) => (
+    <PinchGestureHandler
+      onGestureEvent={onGestureEvent}
+      onHandlerStateChange={onHandlerStateChange}
+    >
+      <View className="flex-1 bg-[#FFF8E3] justify-center items-center overflow-hidden">
+        <TouchableOpacity 
+          activeOpacity={1}
+          onPress={onDoubleTap}
+          className="flex-1 w-full justify-center items-center"
+        >
+          <Image 
+            source={{ uri }} 
+className="w-full h-full" 
+            resizeMode="contain" 
+            fadeDuration={0} 
+            progressiveRenderingEnabled={true}
+            style={{
+              transform: [
+                { translateX },
+                { translateY },
+                { rotate: `${rotation}deg` },
+                { scale }
+              ]
+            }}
+          />
+        </TouchableOpacity>
+      </View>
+    </PinchGestureHandler>
+  ),
+  (prevProps, nextProps) => {
+    return prevProps.uri === nextProps.uri && 
+           prevProps.rotation === nextProps.rotation &&
+           prevProps.scale === nextProps.scale &&
+           prevProps.translateX === nextProps.translateX &&
+           prevProps.translateY === nextProps.translateY;
+  }
+);
 
 // Đặt tên cho component để dễ debug
 PhotoItem.displayName = 'PhotoItem';
@@ -150,14 +177,12 @@ export default function DetailView() {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['11%', '25%', '50%', '90%'], []);
 
-  const [loading, setLoading] = useState(true);
-  const [isDeleting, setIsDeleting] = useState(false);
+const [loading, setLoading] = useState(true);
 
   // VIEW MODES: 'details' -> 'folder_selection' -> 'session_selection'
   const [viewMode, setViewMode] = useState<'details' | 'folder_selection' | 'session_selection'>('details');
   const [photos, setPhotos] = useState<string[]>([]);
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [loadingMetadata, setLoadingMetadata] = useState(false);
+const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const pagerRef = useRef<PagerView>(null);
 
   // Thêm useEffect này sau snapPoints
@@ -189,7 +214,7 @@ export default function DetailView() {
     setNewItemName(''); // Xóa nội dung cũ đi cho sạch
   }, [viewMode]);
 
-  const [data, setData] = useState({
+const [data, setData] = useState({
     name: '',
     folder: '',
     time: '',
@@ -198,7 +223,19 @@ export default function DetailView() {
     jsonUri: '',
     rawTime: '',
     session: '',
+    rotation: 0,
   });
+
+  // State để lưu góc xoay cho từng ảnh
+  const [photoRotations, setPhotoRotations] = useState<{[key: string]: number}>({});
+  
+  // State cho zoom
+  const [scale, setScale] = useState(1);
+  const [lastScale, setLastScale] = useState(1);
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+  const [lastTranslateX, setLastTranslateX] = useState(0);
+  const [lastTranslateY, setLastTranslateY] = useState(0);
 
   // 1. LOAD DATA INITIAL
   useEffect(() => {
@@ -206,10 +243,10 @@ export default function DetailView() {
       if (!uri) return;
       try {
         const decodedUri = decodeURIComponent(uri);
-        const jsonPath = decodedUri.replace(/\.jpg$/i, '.json');
+const jsonPath = decodedUri.replace(/\.jpg$/i, '.json');
         const jsonFile = new File(jsonPath);
 
-        let metadata = { name: '', folder: '', time: '', note: '', session: '' };
+        let metadata = { name: '', folder: '', time: '', note: '', session: '', rotation: 0 };
 
         if (jsonFile.exists) {
           const content = await jsonFile.text();
@@ -224,7 +261,7 @@ export default function DetailView() {
           displayTime = format(new Date(metadata.time), 'h:mma EEEE, MMM do yyyy');
         } catch {}
 
-        setData({
+setData({
           name: metadata.name || 'Untitled',
           folder: metadata.folder || 'Unorganized',
           time: displayTime,
@@ -233,7 +270,14 @@ export default function DetailView() {
           jsonUri: jsonPath,
           rawTime: metadata.time,
           session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
+          rotation: metadata.rotation || 0,
         });
+
+        // Lưu góc xoay vào state photoRotations
+        setPhotoRotations(prev => ({
+          ...prev,
+          [decodedUri]: metadata.rotation || 0
+        }));
       } catch (error) {
         console.error('Error loading detail:', error);
       } finally {
@@ -249,11 +293,14 @@ export default function DetailView() {
       const photosDir = new Directory(Paths.document, 'photos');
       if (!photosDir.exists) return;
       const items = photosDir.list();
-      const folders = items
+      
+      // Get all directories (including empty ones)
+      const allFolders = items
         .filter((item) => item instanceof Directory)
         .map((dir) => dir.name)
-        .sort();
-      setAvailableFolders(folders);
+        .sort((a, b) => a.localeCompare(b)); // Case-sensitive sort
+        
+      setAvailableFolders(allFolders);
     } catch (e) {
       console.error(e);
     }
@@ -263,37 +310,35 @@ export default function DetailView() {
   const loadAllPhotosInFolder = async (folderName?: string, currentUri?: string) => {
     try {
       // XÓA phần này: if (photos.length === 0) { setLoading(true); }
-      
+
       // Sử dụng parameter hoặc fallback về data.folder/data.uri
       const targetFolder = folderName || data.folder;
       const targetUri = currentUri || data.uri;
-      
+
       if (!targetFolder || !targetUri) {
         return;
       }
-      
+
       const photosDir = new Directory(Paths.document, 'photos');
       const currentFolderDir = new Directory(photosDir, targetFolder);
-      
+
       if (!currentFolderDir.exists) {
         setPhotos([targetUri]);
         return;
       }
-      
+
       const files = currentFolderDir.list();
-      const imageFiles = files.filter((f): f is File => 
-        f instanceof File && 
-        (f.name.toLowerCase().endsWith('.jpg') || 
-        f.name.toLowerCase().endsWith('.jpeg') ||
-        f.name.toLowerCase().endsWith('.png'))
+      const imageFiles = files.filter(
+        (f): f is File =>
+          f instanceof File && (f.name.toLowerCase().endsWith('.jpg') || f.name.toLowerCase().endsWith('.jpeg') || f.name.toLowerCase().endsWith('.png'))
       );
-      
+
       const photosWithTime = await Promise.all(
         imageFiles.map(async (file) => {
           try {
             const jsonPath = file.uri.replace(/\.(jpg|jpeg|png)$/i, '.json');
             const jsonFile = new File(jsonPath);
-            
+
             if (jsonFile.exists) {
               const content = await jsonFile.text();
               const metadata = JSON.parse(content);
@@ -301,34 +346,34 @@ export default function DetailView() {
                 uri: file.uri,
                 fileName: file.name,
                 time: metadata.time || new Date().toISOString(),
-                session: metadata.session || ''
+                session: metadata.session || '',
               };
             }
             return {
               uri: file.uri,
               fileName: file.name,
               time: new Date().toISOString(),
-              session: ''
+              session: '',
             };
           } catch {
             return {
               uri: file.uri,
               fileName: file.name,
               time: new Date().toISOString(),
-              session: ''
+              session: '',
             };
           }
         })
       );
-      
+
       photosWithTime.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-      
-      const sortedUris = photosWithTime.map(photo => photo.uri);
-      
+
+      const sortedUris = photosWithTime.map((photo) => photo.uri);
+
       // Tìm ảnh hiện tại bằng cách so sánh URI hoặc tên file (để xử lý trường hợp đổi tên folder)
       const currentImageFile = new File(targetUri);
       const currentFileName = currentImageFile.name;
-      const currentIndex = sortedUris.findIndex(uri => {
+      const currentIndex = sortedUris.findIndex((uri) => {
         const file = new File(uri);
         // So sánh bằng URI hoặc tên file
         return uri === targetUri || file.name === currentFileName;
@@ -336,7 +381,7 @@ export default function DetailView() {
       const newIndex = currentIndex >= 0 ? currentIndex : 0;
       setCurrentPhotoIndex(newIndex);
       setPhotos(sortedUris);
-      
+
       // Cập nhật PagerView index nếu cần
       if (pagerRef.current && newIndex !== currentPhotoIndex) {
         setTimeout(() => {
@@ -349,58 +394,63 @@ export default function DetailView() {
     }
   };
 
-  const loadPhotoMetadata = useCallback(async (photoUri: string) => {
-    try {
-      if (!loadingMetadata) {
-        setLoadingMetadata(true);
-      }
-      
-      const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
-      const jsonFile = new File(jsonPath);
-      
-      let metadata = { name: '', folder: '', time: '', note: '', session: '' };
-      
-      if (jsonFile.exists) {
-        const content = await jsonFile.text();
-        metadata = JSON.parse(content);
-      }
-      
-      let displayTime = metadata.time;
-      try {
-        displayTime = format(new Date(metadata.time), 'h:mma EEEE, MMM do yyyy');
-      } catch {}
-      
-      setData(prev => {
-        const newData = {
-          name: metadata.name || 'Untitled',
-          folder: metadata.folder || 'Unorganized',
-          time: displayTime,
-          note: metadata.note || '',
-          uri: photoUri,
-          jsonUri: jsonPath,
-          rawTime: metadata.time,
-          session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
-        };
-        
-        if (
-          prev.name === newData.name &&
-          prev.folder === newData.folder &&
-          prev.time === newData.time &&
-          prev.note === newData.note &&
-          prev.uri === newData.uri &&
-          prev.session === newData.session
-        ) {
-          return prev;
-        }
-        return newData;
-      });
-    } catch (error) {
-      console.error('Error loading photo metadata:', error);
-    } finally {
-      setLoadingMetadata(false);
-    }
-  }, [loadingMetadata]); 
+  const loadPhotoMetadata = useCallback(
+    async (photoUri: string) => {
+try {
 
+        const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
+        const jsonFile = new File(jsonPath);
+
+        let metadata = { name: '', folder: '', time: '', note: '', session: '', rotation: 0 };
+
+        if (jsonFile.exists) {
+          const content = await jsonFile.text();
+          metadata = JSON.parse(content);
+        }
+
+        let displayTime = metadata.time;
+        try {
+          displayTime = format(new Date(metadata.time), 'h:mma EEEE, MMM do yyyy');
+        } catch {}
+
+setData((prev) => {
+          const newData = {
+            name: metadata.name || 'Untitled',
+            folder: metadata.folder || 'Unorganized',
+            time: displayTime,
+            note: metadata.note || '',
+            uri: photoUri,
+            jsonUri: jsonPath,
+            rawTime: metadata.time,
+            session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
+            rotation: metadata.rotation || 0,
+          };
+
+if (
+            prev.name === newData.name &&
+            prev.folder === newData.folder &&
+            prev.time === newData.time &&
+            prev.note === newData.note &&
+            prev.uri === newData.uri &&
+            prev.session === newData.session &&
+            prev.rotation === newData.rotation
+          ) {
+            return prev;
+          }
+
+        // Cập nhật photoRotations
+        setPhotoRotations(prev => ({
+          ...prev,
+          [photoUri]: metadata.rotation || 0
+        }));
+          return newData;
+        });
+      } catch (error) {
+        console.error('Error loading photo metadata:', error);
+}
+    },
+    []
+  );
 
   const isMovingRef = useRef(false);
 
@@ -409,8 +459,7 @@ export default function DetailView() {
       // Truyền folder và uri hiện tại để tránh race condition
       loadAllPhotosInFolder(data.folder, data.uri);
     }
-  }, [data.folder, data.uri, viewMode]); 
-
+  }, [data.folder, data.uri, viewMode]);
 
   // --- LOGIC 2: LOAD SESSIONS CỦA MỘT FOLDER ---
   const loadSessionsForFolder = async (folderName: string) => {
@@ -454,8 +503,8 @@ export default function DetailView() {
   // A. Trigger mở màn hình chọn Folder
   const handleEditTrigger = async (field: 'name' | 'note' | 'folder') => {
     if (field === 'folder') {
-      await loadFolders(); 
-      setViewMode('folder_selection'); 
+      await loadFolders();
+      setViewMode('folder_selection');
       bottomSheetRef.current?.snapToIndex(4);
     }
   };
@@ -479,25 +528,22 @@ export default function DetailView() {
         bottomSheetRef.current?.snapToIndex(4);
       });
 
-      Alert.alert(
-        'No Change',
-        'This image is already in this folder and session.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('No Change', 'This image is already in this folder and session.', [{ text: 'OK' }]);
       return;
     }
     await finalizeMove(selectedTargetFolder, session);
   };
 
   // D. Tạo Folder mới
-  const handleCreateFolder = async () => {
+const handleCreateFolder = async () => {
     if (!newItemName.trim()) return;
     try {
       const photosDir = new Directory(Paths.document, 'photos');
       const newDir = new Directory(photosDir, newItemName.trim());
       if (!newDir.exists) {
         newDir.create();
-        await loadFolders();
+        // Thêm folder mới vào state ngay lập tức
+        setAvailableFolders(prev => [...prev, newItemName.trim()].sort((a, b) => a.localeCompare(b)));
         setNewItemName('');
         setIsCreating(false);
       } else {
@@ -527,11 +573,7 @@ export default function DetailView() {
           bottomSheetRef.current?.snapToIndex(3);
         });
 
-        Alert.alert(
-        'No Change',
-        'The image is already in the selected folder and session.',
-        [{ text: 'OK' }]
-      );
+        Alert.alert('No Change', 'The image is already in the selected folder and session.', [{ text: 'OK' }]);
         return;
       }
 
@@ -580,16 +622,11 @@ export default function DetailView() {
         jsonUri: targetFolder !== data.folder ? newJsonFile.uri : prev.jsonUri,
       }));
 
-      await updateCacheAfterMove(
-        data.folder,
-        targetFolder,
-        data.uri,
-        {
-          uri: targetFolder !== data.folder ? newImageFile.uri : data.uri,
-          session: targetSession,
-          subject: targetFolder
-        }
-      );
+      await updateCacheAfterMove(data.folder, targetFolder, data.uri, {
+        uri: targetFolder !== data.folder ? newImageFile.uri : data.uri,
+        session: targetSession,
+        subject: targetFolder,
+      });
 
       clearFolderCache(data.folder);
       clearFolderCache(targetFolder);
@@ -598,7 +635,7 @@ export default function DetailView() {
       // Để đảm bảo load đúng folder mới
       const newUri = targetFolder !== data.folder ? newImageFile.uri : data.uri;
       await loadAllPhotosInFolder(targetFolder, newUri);
-      
+
       // 7. Reset flag sau khi đã load xong
       isMovingRef.current = false;
 
@@ -617,6 +654,58 @@ export default function DetailView() {
     }
   };
 
+// ROTATE IMAGE
+  const handleRotate = async (direction: 'left' | 'right') => {
+    try {
+      const currentRotation = photoRotations[data.uri] || data.rotation || 0;
+      const newRotation = direction === 'right' 
+        ? (currentRotation + 90) % 360 
+        : (currentRotation - 90 + 360) % 360;
+
+      // Cập nhật state photoRotations
+      setPhotoRotations(prev => ({
+        ...prev,
+        [data.uri]: newRotation
+      }));
+
+      // Cập nhật data state
+      setData(prev => ({ ...prev, rotation: newRotation }));
+
+      // Lưu vào JSON file
+      const jsonFile = new File(data.jsonUri);
+      let existingContent = {};
+      if (jsonFile.exists) {
+        const text = await jsonFile.text();
+        existingContent = JSON.parse(text);
+      }
+      const newMetadata = { ...existingContent, rotation: newRotation };
+      await jsonFile.write(JSON.stringify(newMetadata, null, 2));
+
+      // Cập nhật cache
+      try {
+        const currentCache = await getPhotosFromCache(data.folder);
+        if (currentCache) {
+          const updatedCache = currentCache.map(photo => {
+            if (photo.uri === data.uri) {
+              return {
+                ...photo,
+                rotation: newRotation
+              };
+            }
+            return photo;
+          });
+          
+          await savePhotosToCache(data.folder, updatedCache);
+        }
+      } catch (cacheError) {
+        console.error('Error updating cache:', cacheError);
+      }
+    } catch (error) {
+      console.error('Error rotating image:', error);
+      Alert.alert('Error', 'Could not rotate image.');
+    }
+  };
+
   // SAVE DATA (Name, Note)
   const handleSave = async (field: 'name' | 'note', newValue: string) => {
     try {
@@ -629,22 +718,22 @@ export default function DetailView() {
       }
       const newMetadata = { ...existingContent, [field]: newValue };
       await jsonFile.write(JSON.stringify(newMetadata, null, 2));
-      
+
       // === CẬP NHẬT CACHE ===
       if (field === 'note') {
         try {
           const currentCache = await getPhotosFromCache(data.folder);
           if (currentCache) {
-            const updatedCache = currentCache.map(photo => {
+            const updatedCache = currentCache.map((photo) => {
               if (photo.uri === data.uri) {
                 return {
                   ...photo,
-                  note: newValue
+                  note: newValue,
                 };
               }
               return photo;
             });
-            
+
             await savePhotosToCache(data.folder, updatedCache);
             console.log('Cache updated after note edit');
           }
@@ -658,70 +747,159 @@ export default function DetailView() {
     }
   };
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Image Deletion',
-      'Do you want to delete this image? This action cannot be undone.',
-      [
-        {
-          text: 'Hủy',
-          style: 'cancel',
-        },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: async () => {
+const handleSaveToGallery = async () => {
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Gallery permission is required to save photos.');
+      return;
+    }
+
+    // Lấy URI của ảnh hiện tại (dựa vào currentPhotoIndex)
+    const currentUri = photos.length > 0 ? photos[currentPhotoIndex] : data.uri;
+    if (!currentUri) {
+      Alert.alert('Error', 'No image found to save.');
+      return;
+    }
+
+// Lưu thẳng vào gallery
+    await MediaLibrary.saveToLibraryAsync(currentUri);
+    Alert.alert('Success', 'Photo saved to gallery');
+  } catch (error) {
+    console.error('Error saving to gallery:', error);
+    Alert.alert('Error', 'Failed to save photo to gallery.');
+  }
+};
+
+const handleDelete = () => {
+    Alert.alert('Image Deletion', 'Do you want to delete this image? This action cannot be undone.', [
+      {
+        text: 'Hủy',
+        style: 'cancel',
+      },
+      {
+        text: 'Xóa',
+        style: 'destructive',
+        onPress: async () => {
+try {
+
+            // 1. Xóa file ảnh
+            const imageFile = new File(data.uri);
+            if (imageFile.exists) {
+              await imageFile.delete();
+            }
+
+            // 2. Xóa file json metadata
+            const jsonFile = new File(data.jsonUri);
+            if (jsonFile.exists) {
+              await jsonFile.delete();
+            }
+
+// 3. Cập nhật danh sách ảnh
+            const newPhotos = photos.filter((uri) => uri !== data.uri);
+            setPhotos(newPhotos);
+
+            // 4. Luôn xóa cache sau khi xóa ảnh
+            clearFolderCache(data.folder);
+            
+            // Cập nhật cache với danh sách ảnh mới (để sessionFolders có dữ liệu mới nhất)
             try {
-              setIsDeleting(true);
-
-              // 1. Xóa file ảnh
-              const imageFile = new File(data.uri);
-              if (imageFile.exists) {
-                await imageFile.delete();
-              }
-
-              // 2. Xóa file json metadata
-              const jsonFile = new File(data.jsonUri);
-              if (jsonFile.exists) {
-                await jsonFile.delete();
-              }
-
-              // 3. Cập nhật danh sách ảnh
-              const newPhotos = photos.filter(uri => uri !== data.uri);
-              setPhotos(newPhotos);
-              
-              // 4. Nếu còn ảnh, chuyển đến ảnh trước đó
-              if (newPhotos.length > 0) {
-                const newIndex = Math.max(0, currentPhotoIndex - 1);
-                setCurrentPhotoIndex(newIndex);
-                // Cập nhật PagerView ngay lập tức
-                if (pagerRef.current) {
-                  pagerRef.current.setPage(newIndex);
+              const updatedPhotosPromises = newPhotos.map(async (photoUri) => {
+                const jsonPath = photoUri.replace(/\.(jpg|jpeg|png)$/i, '.json');
+                const jsonFile = new File(jsonPath);
+                
+                if (jsonFile.exists) {
+                  const content = await jsonFile.text();
+                  const metadata = JSON.parse(content);
+                  return {
+                    uri: photoUri,
+                    name: new File(photoUri).name,
+                    timestamp: new Date(metadata.time || new Date()).getTime(),
+                    note: metadata.note || '',
+                    subject: metadata.subject || data.folder,
+                    session: metadata.session || format(new Date(), 'yyyy-MM-dd'),
+                  };
                 }
-                await loadPhotoMetadata(newPhotos[newIndex]);
-              } else {
-                // Nếu không còn ảnh nào, quay về
-                clearFolderCache(data.folder);
-                router.back();
-                return;
-              }
+                return null;
+              });
               
-              clearFolderCache(data.folder);
-              setIsDeleting(false);
+              const allResults = await Promise.all(updatedPhotosPromises);
+              const resolvedPhotos = allResults.filter((item) => item !== null) as PhotoItemType[];
+              await savePhotosToCache(data.folder, resolvedPhotos);
+            } catch (cacheError) {
+              console.error('Error updating cache after deletion:', cacheError);
+            }
+
+            // 5. Nếu còn ảnh, chuyển đến ảnh trước đó
+            if (newPhotos.length > 0) {
+              const newIndex = Math.min(currentPhotoIndex, newPhotos.length - 1);
+              setCurrentPhotoIndex(newIndex);
+              // Cập nhật PagerView ngay lập tức
+              if (pagerRef.current) {
+                pagerRef.current.setPage(newIndex);
+              }
+              await loadPhotoMetadata(newPhotos[newIndex]);
+            } else {
+              // Nếu không còn ảnh nào, quay về
+              router.back();
+              return;
+            }
             } catch (error) {
               console.error('Lỗi xóa file:', error);
               Alert.alert('Error', 'Could not delete the image.');
-              setIsDeleting(false);
             }
-          },
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const handleScrollBeginDrag = useCallback(() => {
+const handleScrollBeginDrag = useCallback(() => {
     Keyboard.dismiss();
   }, []);
+
+  // Zoom handlers
+  const handlePinchGestureEvent = useCallback((event: any) => {
+    const newScale = event.nativeEvent.scale * lastScale;
+    
+    // Calculate focal point translation
+    const { focalX, focalY } = event.nativeEvent;
+    const containerWidth = 400; // Approximate container width, you can make this dynamic
+    const containerHeight = 600; // Approximate container height, you can make this dynamic
+    
+    // Calculate the offset from center
+    const offsetX = (focalX - containerWidth / 2) / lastScale;
+    const offsetY = (focalY - containerHeight / 2) / lastScale;
+    
+    // Calculate new translate values to keep focal point at same position
+    const newTranslateX = lastTranslateX - (offsetX * (event.nativeEvent.scale - 1));
+    const newTranslateY = lastTranslateY - (offsetY * (event.nativeEvent.scale - 1));
+    
+    setScale(newScale);
+    setTranslateX(newTranslateX);
+    setTranslateY(newTranslateY);
+  }, [lastScale, lastTranslateX, lastTranslateY]);
+
+  const handlePinchHandlerStateChange = useCallback((event: any) => {
+    if (event.nativeEvent.state === 5) { // END
+      setLastScale(scale);
+      setLastTranslateX(translateX);
+      setLastTranslateY(translateY);
+    }
+  }, [scale, translateX, translateY]);
+
+  const handleDoubleTap = useCallback(() => {
+    const newScale = scale === 1 ? 2 : 1;
+    setScale(newScale);
+    setLastScale(newScale);
+    
+    // Reset translation when returning to normal scale
+    if (newScale === 1) {
+      setTranslateX(0);
+      setTranslateY(0);
+      setLastTranslateX(0);
+      setLastTranslateY(0);
+    }
+  }, [scale]);
 
   if (loading) {
     return (
@@ -735,29 +913,17 @@ export default function DetailView() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View className="flex-1 bg-gray-100">
 
-        {loadingMetadata && (
-          <View className="absolute inset-0 justify-center items-center bg-black/20">
-            <ActivityIndicator size="small" color="#6E4A3F" />
-          </View>
-        )}
 
-        {isDeleting && (
-          <View className="absolute inset-0 justify-center items-center bg-black/20 z-50">
-            <ActivityIndicator size="small" color="#6E4A3F" />
-          </View>
-        )}
-
-        
         {/* <View className="h-full relative">
           <Image source={{ uri: data.uri }} className="w-full h-full" resizeMode="cover" />
           
-          <TouchableOpacity onPress={() => router.back()} className="absolute top-12 left-4 p-2 bg-black/20 rounded-full">
-            <Text className="text-white text-xl font-bold">←</Text>
+<TouchableOpacity onPress={() => router.back()} className="absolute top-12 left-4 p-2 bg-[#714A36]/20 rounded-full">
+            <Text className="text-[#FFF8E3] text-xl font-bold">←</Text>
           </TouchableOpacity>
 
           
-          <TouchableOpacity onPress={handleDelete} className="absolute top-12 right-4 p-2 bg-black/20 rounded-full">
-            <Trash2 size={22} color="white" />
+          <TouchableOpacity onPress={handleDelete} className="absolute top-12 right-4 p-2 bg-[#714A36]/20 rounded-full">
+            <Trash2 size={22} color="#FFF8E3" />
           </TouchableOpacity>
         </View> */}
 
@@ -769,11 +935,19 @@ export default function DetailView() {
                 key={`pager-${data.folder}-${photos.length}`}
                 style={{ flex: 1 }}
                 initialPage={currentPhotoIndex}
-                onPageSelected={(e) => {
+onPageSelected={(e) => {
                   const index = e.nativeEvent.position;
                   if (index >= 0 && index < photos.length) {
                     setCurrentPhotoIndex(index);
                     const newUri = photos[index];
+                    
+                     // Reset zoom khi chuyển ảnh
+                     setScale(1);
+                     setLastScale(1);
+                     setTranslateX(0);
+                     setTranslateY(0);
+                     setLastTranslateX(0);
+                     setLastTranslateY(0);
                     
                     if (newUri && newUri !== data.uri) {
                       loadPhotoMetadata(newUri);
@@ -782,20 +956,29 @@ export default function DetailView() {
                 }}
                 scrollEnabled={true}
               >
-                {photos.map((photoUri, index) => (
+{photos.map((photoUri, index) => (
                   <View 
                     key={`photo-${index}-${photoUri.split('/').pop()}`}
                     style={{ flex: 1 }}
                   >
-                    <PhotoItem uri={photoUri} />
+                    <PhotoItem 
+                      uri={photoUri} 
+                      rotation={photoRotations[photoUri] || 0}
+                      scale={scale}
+                      translateX={translateX}
+                      translateY={translateY}
+                      onDoubleTap={handleDoubleTap}
+                      onGestureEvent={handlePinchGestureEvent}
+                      onHandlerStateChange={handlePinchHandlerStateChange}
+                    />
                   </View>
                 ))}
               </PagerView>
-              
+
               {/* Custom Pagination Dots */}
               {photos.length > 1 && (
-                <View 
-                  style={{ 
+                <View
+                  style={{
                     position: 'absolute',
                     bottom: 100,
                     left: 0,
@@ -803,7 +986,7 @@ export default function DetailView() {
                     flexDirection: 'row',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    gap: 8
+                    gap: 8,
                   }}
                 >
                   {photos.map((_, index) => (
@@ -813,28 +996,35 @@ export default function DetailView() {
                         width: 8,
                         height: 8,
                         borderRadius: 4,
-                        backgroundColor: index === currentPhotoIndex 
-                          ? '#FFFFFF' 
-                          : 'rgba(255,255,255,0.3)',
+                        backgroundColor: index === currentPhotoIndex ? '#FFFFFF' : 'rgba(255,255,255,0.3)',
                       }}
                     />
                   ))}
                 </View>
               )}
             </>
-          ) : (
+) : (
             <View className="flex-1">
-              <PhotoItem uri={data.uri} />
+              <PhotoItem 
+                uri={data.uri} 
+                rotation={photoRotations[data.uri] || data.rotation || 0}
+                scale={scale}
+                translateX={translateX}
+                translateY={translateY}
+                onDoubleTap={handleDoubleTap}
+                onGestureEvent={handlePinchGestureEvent}
+                onHandlerStateChange={handlePinchHandlerStateChange}
+              />
             </View>
           )}
 
-          {/* Header với các button */}
+{/* Header với các button */}
           <View className="absolute top-12 left-0 right-0 px-6 flex-row justify-between items-center z-10">
             {/* Back Button */}
             <TouchableOpacity 
               testID="header-back-button"
               onPress={() => router.back()} 
-              className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
+              className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
             >
               <ChevronLeft size={22} color="white" />
             </TouchableOpacity>
@@ -842,22 +1032,41 @@ export default function DetailView() {
             {/* Counter hiển thị số thứ tự ảnh */}
             {photos.length > 1 && (
               <View className="absolute left-0 right-0 items-center">
-                <View className="bg-black/50 px-4 py-2 rounded-full">
-                  <Text className="text-white text-sm font-semibold">
+<View className="bg-[#714A36]/50 px-4 py-2 rounded-full">
+                  <Text className="text-[#FFF8E3] text-sm font-semibold">
                     {currentPhotoIndex + 1}/{photos.length}
                   </Text>
                 </View>
               </View>
             )}
 
-            {/* Delete Button */}
-            <TouchableOpacity 
-              testID="header-delete-button"
-              onPress={handleDelete} 
-              className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
-            >
-              <Trash2 size={20} color="white" />
-            </TouchableOpacity>
+            {/* Action Buttons */}
+            <View className="flex-row gap-2">
+{/* Rotate Button */}
+              <TouchableOpacity 
+                onPress={() => handleRotate('right')}
+                className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
+              >
+                <RotateCw size={20} color="white" />
+              </TouchableOpacity>
+
+              {/* Save to Gallery Button */}
+              <TouchableOpacity 
+                onPress={handleSaveToGallery}
+                className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
+              >
+                <Download size={20} color="white" />
+              </TouchableOpacity>
+
+              {/* Delete Button */}
+              <TouchableOpacity 
+                testID="header-delete-button"
+                onPress={handleDelete} 
+                className="w-10 h-10 bg-[#714A36]/50 rounded-full items-center justify-center"
+              >
+                <Trash2 size={20} color="white" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -867,7 +1076,7 @@ export default function DetailView() {
               <View className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center mb-2">
                 <Check size={24} color="white" />
               </View>
-              <Text className="text-white text-center font-bold">Stored at folder</Text>
+<Text className="text-white text-center font-bold">Stored at folder</Text>
               <Text className="text-white text-center font-bold">&quot;{data.session}&quot;</Text>
             </View>
           </View>
@@ -877,14 +1086,14 @@ export default function DetailView() {
           ref={bottomSheetRef}
           index={1}
           snapPoints={snapPoints}
-          backgroundStyle={{ backgroundColor: '#FFFBEE', borderRadius: 20 }}
+          backgroundStyle={{ backgroundColor: '#FFFBEE', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(113, 78, 67, 0.2)' }}
           handleComponent={CustomHandle}
           handleIndicatorStyle={{ opacity: 0 }}
           keyboardBehavior="interactive"
           android_keyboardInputMode="adjustResize"
           enableOverDrag={false}
           enablePanDownToClose={false}
-          enableContentPanningGesture={false}
+          enableContentPanningGesture={true}
           enableHandlePanningGesture={true}
           activeOffsetY={[-1, 1]}
           failOffsetX={[-200, 200]}
@@ -939,7 +1148,8 @@ export default function DetailView() {
               <View className="flex-1">
                 {/* Header */}
                 <View className="flex-row items-center gap-4 mb-5">
-                  <TouchableOpacity onPress={() => setViewMode('details')} 
+                  <TouchableOpacity
+                    onPress={() => setViewMode('details')}
                     className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
                   >
                     <ChevronLeft size={24} color="#35383E" />
@@ -962,8 +1172,8 @@ export default function DetailView() {
                         onSubmitEditing={handleCreateFolder}
                         returnKeyType="done"
                         className="flex-1 text-[#35383E] font-bold text-base mr-2"
-                        autoCapitalize="none" 
-                        autoCorrect={false}    
+                        autoCapitalize="none"
+                        autoCorrect={false}
                       />
                       <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1.5 rounded-full">
                         <X size={18} color="#757575" strokeWidth={3} />
@@ -972,13 +1182,13 @@ export default function DetailView() {
                   </View>
                 )}
 
-                <View className="gap-y-1"> 
+                <View className="gap-y-1">
                   {availableFolders.map((folder) => {
                     const currentFolderRaw = data.folder || '';
-                    const isCurrent = currentFolderRaw.trim().toLowerCase() === folder.trim().toLowerCase();
+                    const isCurrent = currentFolderRaw === folder;
                     const backgroundColor = isCurrent ? '#6E4A3F' : '#FFD9B3';
                     const textColor = isCurrent ? 'text-white' : 'text-[#35383E]';
-                    
+
                     return (
                       // <TouchableOpacity
                       //   key={folder}
@@ -988,7 +1198,7 @@ export default function DetailView() {
                       //   style={{ backgroundColor }}
                       // >
                       //   {/* Icon thư mục thay vì bút chì */}
-                      //   <View 
+                      //   <View
                       //     className={`flex items-center justify-center w-[35px] h-[35px] rounded-[11.25px] ${
                       //       isCurrent ? 'bg-white/20' : 'bg-black/10'
                       //     }`}
@@ -1014,12 +1224,14 @@ export default function DetailView() {
                         onPress={() => handleSelectFolder(folder)}
                         isActive={isCurrent}
                         icon={<Folder size={16} color={isCurrent ? 'white' : '#35383E'} />}
-                        rightIcon={isCurrent ? (
-                          <View className="bg-white/20 rounded-full p-1">
-                            <Check size={16} color="white" />
-                          </View>
-                        ) : undefined}
-                        showActions={false} 
+                        rightIcon={
+                          isCurrent ? (
+                            <View className="bg-white/20 rounded-full p-1">
+                              <Check size={16} color="white" />
+                            </View>
+                          ) : undefined
+                        }
+                        showActions={false}
                       />
                     );
                   })}
@@ -1028,7 +1240,7 @@ export default function DetailView() {
                 {/* Nút Floating Add Folder */}
                 {!isCreating && (
                   <View className="mt-auto items-end pt-4">
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => setIsCreating(true)}
                       className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
                     >
@@ -1043,8 +1255,11 @@ export default function DetailView() {
             {viewMode === 'session_selection' && (
               <View className="flex-1">
                 <View className="flex-row items-center gap-4 mb-5">
-                  <TouchableOpacity onPress={() => setViewMode('folder_selection')} className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center">
-                  <ChevronLeft size={24} color="#35383E" />
+                  <TouchableOpacity
+                    onPress={() => setViewMode('folder_selection')}
+                    className="w-[35px] h-[35px] rounded-[11.25px] bg-[#F2F2F2] flex items-center justify-center"
+                  >
+                    <ChevronLeft size={24} color="#35383E" />
                   </TouchableOpacity>
                   <View>
                     <Text className="text-sm font-sen font-bold text-[#35383E]">CHOOSE SESSION</Text>
@@ -1053,40 +1268,36 @@ export default function DetailView() {
                 </View>
 
                 {isCreating && (
-                    <View className="mb-4">
-                        <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm border border-gray-200">
-                            <TextInput
-                                value={newItemName}
-                                onChangeText={setNewItemName}
-                                placeholder="SESSION NAME..."
-                                placeholderTextColor="#9CA3AF"
-                                autoFocus
-                                onSubmitEditing={handleCreateSession}
-                                returnKeyType="done"
-                                className="flex-1 text-[#35383E] font-bold text-base mr-2 uppercase"
-                            />
-                            <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1 rounded-full">
-                                <X size={16} color="#757575" strokeWidth={3} />
-                            </TouchableOpacity>
-                        </View>
+                  <View className="mb-4">
+                    <View className="flex-row items-center bg-white rounded-[20px] px-4 py-3 shadow-sm border border-gray-200">
+                      <TextInput
+                        value={newItemName}
+                        onChangeText={setNewItemName}
+                        placeholder="SESSION NAME..."
+                        placeholderTextColor="#9CA3AF"
+                        autoFocus
+                        onSubmitEditing={handleCreateSession}
+                        returnKeyType="done"
+                        className="flex-1 text-[#35383E] font-bold text-base mr-2 uppercase"
+                      />
+                      <TouchableOpacity onPress={() => setIsCreating(false)} className="bg-[#E0E0E0] p-1 rounded-full">
+                        <X size={16} color="#757575" strokeWidth={3} />
+                      </TouchableOpacity>
                     </View>
+                  </View>
                 )}
 
                 <View className="gap-y-3">
                   {availableSessions.map((session) => {
                     const isCurrent = session === data.session && selectedTargetFolder === data.folder;
-                    
+
                     return (
                       <TouchableOpacity
                         key={session}
                         onPress={() => handleSelectSession(session)}
-                        className={`w-full flex-row items-center justify-between px-5 py-4 rounded-[20px] ${
-                          isCurrent ? 'bg-[#6E4A3F]' : 'bg-[#FFE4C4]'
-                        }`}
+                        className={`w-full flex-row items-center justify-between px-5 py-4 rounded-[20px] ${isCurrent ? 'bg-[#6E4A3F]' : 'bg-[#FFE4C4]'}`}
                       >
-                        <Text className={`font-bold text-sm uppercase ${
-                          isCurrent ? 'text-white' : 'text-[#4B3B36]'
-                        }`}>
+                        <Text className={`font-bold text-sm uppercase ${isCurrent ? 'text-white' : 'text-[#4B3B36]'}`}>
                           {session}
                           {isCurrent && ' (Current)'}
                         </Text>
@@ -1098,27 +1309,25 @@ export default function DetailView() {
                       </TouchableOpacity>
                     );
                   })}
-                  {availableSessions.length === 0 && (
-                      <Text className="text-gray-400 text-center italic mt-4">No sessions found in this folder.</Text>
-                  )}
+                  {availableSessions.length === 0 && <Text className="text-gray-400 text-center italic mt-4">No sessions found in this folder.</Text>}
                 </View>
 
                 {/* Floating Add Session */}
-                 {!isCreating && (
-                     <View className="mt-auto items-end pt-4">
-                        <TouchableOpacity 
-                            onPress={() => {
-                              if (!isCreating) {
-                                setNewItemName(format(new Date(), 'yyyy-MM-dd'));
-                              }
-                              setIsCreating(true);
-                            }}
-                            className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
-                        >
-                            <Plus size={28} color="#8B4513" strokeWidth={3} />
-                        </TouchableOpacity>
-                     </View>
-                 )}
+                {!isCreating && (
+                  <View className="mt-auto items-end pt-4">
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (!isCreating) {
+                          setNewItemName(format(new Date(), 'yyyy-MM-dd'));
+                        }
+                        setIsCreating(true);
+                      }}
+                      className="w-14 h-14 bg-[#FFDAB9] rounded-full flex items-center justify-center shadow-md border-2 border-white"
+                    >
+                      <Plus size={28} color="#8B4513" strokeWidth={3} />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
           </BottomSheetScrollView>

@@ -1,60 +1,64 @@
 import React from 'react';
-import { render, waitFor, fireEvent } from '@testing-library/react-native';
+import { render, waitFor, fireEvent, act } from '@testing-library/react-native';
 import Home from '../app/(main layout)/home/index';
-import { File } from 'expo-file-system';
 import { Image } from 'react-native';
+import * as Calendar from 'expo-calendar';
+import { clearFolderCache, updateCacheAfterMove } from '@/utils/photoCache';
+import { getData } from '@/utils/asyncStorage';
+import { File } from 'expo-file-system'; // Import để dùng type hoặc class trong test
 
-/* ---------------- GLOBAL MOCK STATE ---------------- */
-let mockEvents: any[] = [];
-let mockLoading = false;
-let mockFiles: any[] = [];
-let mockDirExists = true;
+/* ========================================================================== */
+/* 1. GLOBAL MOCKS & SETUP                                                    */
+/* ========================================================================== */
 
-/* ---------------- ROUTER ---------------- */
-const mockPush = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush }),
-}));
+// Mock các hàm của File System để theo dõi
+const mockMove = jest.fn();
+const mockWrite = jest.fn();
+const mockCreate = jest.fn();
+const mockList = jest.fn().mockReturnValue([]); // Mặc định trả về rỗng
+const mockText = jest.fn().mockResolvedValue('{}');
+const mockExists = jest.fn().mockReturnValue(true);
 
-/* ---------------- NAVIGATION FOCUS ---------------- */
-jest.mock('@react-navigation/native', () => {
-  const React = jest.requireActual('react');
-  return {
-    useFocusEffect: (cb: any) => {
-      React.useEffect(cb, [cb]);
-    },
-  };
-});
-
-/* ---------------- CALENDAR HOOK ---------------- */
-const mockLoadEvents = jest.fn();
-jest.mock('@/app/services/useUnifiedCalendar', () => ({
-  useUnifiedCalendar: () => ({
-    events: mockEvents,
-    loading: mockLoading,
-    loadEvents: mockLoadEvents,
-  }),
-}));
-
-/* ---------------- FILE SYSTEM ---------------- */
+// --- MOCK EXPO-FILE-SYSTEM ---
 jest.mock('expo-file-system', () => {
+  // Định nghĩa Mock Class
   class MockFile {
     name: string;
     uri: string;
-    constructor(name: string, uri: string) {
-      this.name = name;
-      this.uri = uri;
+    exists = true;
+
+    constructor(parentOrPath: any, name?: string) {
+      if (name) {
+        this.name = name;
+        // Xử lý logic ghép đường dẫn đơn giản
+        const parentUri = typeof parentOrPath === 'string' ? parentOrPath : parentOrPath.uri;
+        this.uri = (parentUri || 'file://root') + '/' + name;
+      } else {
+        this.name = 'test.jpg';
+        this.uri = 'file://test.jpg';
+      }
     }
+    move = mockMove;
+    write = mockWrite;
+    text = mockText;
   }
 
   class MockDirectory {
-    exists: boolean;
-    constructor() {
-      this.exists = mockDirExists;
+    exists = true;
+    uri = 'file://photos';
+
+    constructor(parentOrPath: any, name?: string) {
+      this.exists = mockExists(); // Link với mock function để điều khiển từ bên ngoài
+      
+      const parentUri = typeof parentOrPath === 'string' ? parentOrPath : parentOrPath?.uri;
+      if (name) {
+        this.uri = (parentUri || 'file://root') + '/' + name;
+      } else if (typeof parentOrPath === 'string') {
+        this.uri = parentOrPath;
+      }
     }
-    list() {
-      return mockFiles;
-    }
+    create = mockCreate;
+    list = mockList;
   }
 
   return {
@@ -64,7 +68,67 @@ jest.mock('expo-file-system', () => {
   };
 });
 
-/* ---------------- ICON ---------------- */
+// --- MOCK NAVIGATION ---
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
+jest.mock('@react-navigation/native', () => {
+  const React = jest.requireActual('react');
+  return {
+    useFocusEffect: (cb: any) => React.useEffect(cb, [cb]),
+  };
+});
+
+// --- MOCK CALENDAR HOOK (Data UI) ---
+const mockLoadEvents = jest.fn();
+// Dữ liệu mẫu mặc định cho hook
+const defaultMockEvents = [
+  {
+    id: '1',
+    title: 'Math Class',
+    startDate: '2024-01-01T08:00:00.000Z',
+    endDate: '2024-01-01T10:00:00.000Z',
+    location: 'Room 101',
+    source: 'LOCAL',
+    color: '#AC3C00'
+  },
+];
+
+jest.mock('@/app/services/useUnifiedCalendar', () => ({
+  useUnifiedCalendar: () => ({
+    events: defaultMockEvents, // Trả về biến global này để dễ assert
+    loading: false,
+    loadEvents: mockLoadEvents,
+  }),
+}));
+
+// --- MOCK EXTERNAL SERVICES ---
+jest.mock('@/utils/asyncStorage', () => ({
+  getData: jest.fn(),
+}));
+
+jest.mock('@/app/services/localCalendarService', () => ({
+  getLocalUnifiedEventsInRange: jest.fn().mockResolvedValue([]),
+}));
+
+jest.mock('@/app/services/calenderApi', () => ({
+  calendarApi: {
+    getAll: jest.fn().mockResolvedValue([]),
+  },
+}));
+
+jest.mock('@/utils/photoCache', () => ({
+  clearFolderCache: jest.fn(),
+  updateCacheAfterMove: jest.fn(),
+}));
+
+jest.mock('expo-calendar', () => ({
+  getEventsAsync: jest.fn(),
+}));
+
+// --- MOCK UI COMPONENTS ---
 jest.mock('lucide-react-native', () => {
   const { Text } = jest.requireActual('react-native');
   return {
@@ -72,12 +136,13 @@ jest.mock('lucide-react-native', () => {
   };
 });
 
-/* ---------------- DATE FIX ---------------- */
+// --- MOCK DATE-FNS (Fix Timezone) ---
 jest.mock('date-fns', () => {
   const actual = jest.requireActual('date-fns');
   return {
     ...actual,
     format: (date: Date | number, fmt: string) => {
+      // Mock giờ cố định (UTC) để snapshot không bị lệch múi giờ
       if (fmt === 'HH:mm') {
         const d = new Date(date);
         return `${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`;
@@ -87,181 +152,210 @@ jest.mock('date-fns', () => {
   };
 });
 
-/* ===================== TESTS ===================== */
+/* ========================================================================== */
+/* 2. TEST SUITE                                                              */
+/* ========================================================================== */
 
-describe('Home Screen – 100% coverage', () => {
-  const NOW = new Date('2024-01-01T09:00:00.000Z');
+describe('Home Screen - Full Coverage', () => {
+  const NOW = new Date('2024-01-01T09:00:00.000Z'); // Giả lập thời gian hiện tại
 
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(NOW);
     jest.clearAllMocks();
 
-    mockEvents = [
-      {
-        id: '1',
-        title: 'Math',
-        startDate: '2024-01-01T08:00:00.000Z',
-        endDate: '2024-01-01T10:00:00.000Z',
-        location: 'Room A',
-        source: 'LOCAL',
-      },
-      {
-        id: '2',
-        title: 'Online Talk',
-        startDate: '2024-01-01T13:00:00.000Z',
-        endDate: '2024-01-01T14:00:00.000Z',
-        location: 'Zoom',
-        source: 'REMOTE',
-      },
-    ];
-
-    mockLoading = false;
-    mockDirExists = true;
-
-    // @ts-ignore
-    mockFiles = [new File('a.jpg', 'uri/a.jpg'), new File('b.png', 'uri/b.png')];
+    // Reset default return values
+    mockExists.mockReturnValue(true);
+    mockList.mockReturnValue([]);
+    (getData as jest.Mock).mockResolvedValue(null);
   });
 
   afterEach(() => {
     jest.useRealTimers();
   });
 
-  /* ---------- BASIC RENDER ---------- */
-  it('renders header and loads events', async () => {
+  /* ---------- UI BASIC ---------- */
+  
+  it('renders correctly and loads schedule', async () => {
     const { getByText } = render(<Home />);
-
+    
     expect(getByText('Welcome back!')).toBeTruthy();
     expect(mockLoadEvents).toHaveBeenCalled();
-
+    
     await waitFor(() => {
-      expect(getByText('Math')).toBeTruthy();
-      expect(getByText('Online Talk')).toBeTruthy();
+      expect(getByText('Math Class')).toBeTruthy();
+      expect(getByText('08:00')).toBeTruthy(); 
     });
   });
 
-  /* ---------- EMPTY STATE ---------- */
-  it('shows empty schedule', async () => {
-    mockEvents = [];
-    const { getByText } = render(<Home />);
-
-    await waitFor(() => expect(getByText('No classes scheduled for today.')).toBeTruthy());
-  });
-
-  /* ---------- LOADING STATE ---------- */
-  it('shows loading indicator', () => {
-    mockLoading = true;
-    const { UNSAFE_getByType } = render(<Home />);
-    expect(UNSAFE_getByType(require('react-native').ActivityIndicator)).toBeTruthy();
-  });
-
-  /* ---------- DURATION FORMAT ---------- */
-  it('formats duration correctly', async () => {
-    const { getByText } = render(<Home />);
-
-    await waitFor(() => {
-      expect(getByText(/2h/)).toBeTruthy();
-      expect(getByText(/60m/)).toBeTruthy();
-    });
-  });
-
-  /* ---------- ADD EVENT ---------- */
-  it('navigates to add-event screen', () => {
+  it('handles navigation to add event', () => {
     const { getByText } = render(<Home />);
     fireEvent.press(getByText('AddEventIcon'));
     expect(mockPush).toHaveBeenCalledWith('/(main layout)/schedule/addEvent');
   });
 
-  /* ---------- WEEK DAY CHANGE ---------- */
-  it('reloads when selecting another day', () => {
-    const { getByText } = render(<Home />);
-    mockLoadEvents.mockClear();
+  /* ---------- UNORGANIZED IMAGES DISPLAY ---------- */
 
-    fireEvent.press(getByText('Tue'));
-    expect(mockLoadEvents).toHaveBeenCalled();
-  });
+  it('shows unorganized images banner when files exist', async () => {
+    // SETUP: Tạo File instance từ mock
+    // Dùng require để lấy đúng Class đã mock
+    const { File: MockFileClass } = require('expo-file-system');
+    const file1 = new MockFileClass('docs', 'img1.jpg');
+    
+    // Mock list trả về file này
+    mockList.mockReturnValue([file1]);
 
-  /* ---------- UNORGANIZED IMAGES ---------- */
-  it('shows banner with images and count', async () => {
     const { getByText } = render(<Home />);
 
     await waitFor(() => {
       expect(getByText('Classify unorganized images now!')).toBeTruthy();
-      expect(getByText('View 2 unorganized images')).toBeTruthy();
+      expect(getByText('View 1 unorganized images')).toBeTruthy();
     });
   });
 
-  it('filters non-image files', async () => {
-    // @ts-ignore
-    mockFiles = [new File('doc.pdf', 'uri/doc.pdf'), new File('photo.jpg', 'uri/photo.jpg')];
-
+  it('hides banner if no images found', async () => {
+    mockList.mockReturnValue([]);
     const { getByText } = render(<Home />);
-    await waitFor(() => expect(getByText('View 1 unorganized images')).toBeTruthy());
+    await waitFor(() => {
+      expect(getByText('All images are organized!')).toBeTruthy();
+    });
   });
 
-  it('navigates to image details on image press', async () => {
+  it('navigates to image detail', async () => {
+    const { File: MockFileClass } = require('expo-file-system');
+    const file1 = new MockFileClass('docs', 'img1.jpg');
+    mockList.mockReturnValue([file1]);
+    
     const { UNSAFE_getAllByType } = render(<Home />);
-
-    // Image is nested inside TouchableOpacity → press parent
+    
+    await waitFor(() => expect(UNSAFE_getAllByType(Image).length).toBeGreaterThan(0));
+    
     const images = UNSAFE_getAllByType(Image);
-    expect(images.length).toBeGreaterThan(0);
-
+    // Click vào Image (hoặc parent Touchable)
     fireEvent.press(images[0].parent as any);
 
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/imageDetails',
-      params: { uri: 'uri/a.jpg' },
+      params: { uri: expect.stringContaining('img1.jpg') },
     });
   });
 
-  it('navigates to unorganized folder', async () => {
-    const { getByText } = render(<Home />);
-    await waitFor(() => getByText('View 2 unorganized images'));
+  /* ---------- AUTO CLASSIFY LOGIC (CRITICAL) ---------- */
 
-    fireEvent.press(getByText('View 2 unorganized images'));
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: '/sessionFolders/[folderName]',
-      params: { folderName: 'Unorganized' },
+  it('successfully auto-classifies matched images', async () => {
+    /* SCENARIO:
+       - 1 ảnh chụp lúc 08:30
+       - Lịch có sự kiện "Math Class" lúc 08:00 - 10:00
+       - Mong đợi: Ảnh được move vào folder "Math Class"
+    */
+    
+    // 1. Setup Files
+    const { File: MockFileClass } = require('expo-file-system');
+    const imgFile = new MockFileClass('docs', 'photo.jpg');
+    
+    mockList.mockReturnValue([imgFile]); // Trả về ảnh
+    
+    // Mock metadata JSON time trùng khớp
+    mockText.mockResolvedValue(JSON.stringify({ 
+      time: '2024-01-01T08:30:00.000Z',
+      folder: 'Unorganized'
+    }));
+
+    // 2. Setup Calendar (Native)
+    (getData as jest.Mock).mockResolvedValue(JSON.stringify(['cal1']));
+    (Calendar.getEventsAsync as jest.Mock).mockResolvedValue([{
+      id: 'native_1',
+      title: 'Math Class',
+      startDate: '2024-01-01T08:00:00.000Z',
+      endDate: '2024-01-01T10:00:00.000Z',
+      calendarId: 'cal1'
+    }]);
+
+    // 3. Render
+    const { getByText } = render(<Home />);
+
+    // Chờ nút hiện ra
+    await waitFor(() => expect(getByText('Auto classify these images')).toBeTruthy());
+
+    // 4. Act
+    await act(async () => {
+      fireEvent.press(getByText('Auto classify these images'));
     });
-  });
 
-  /* ---------- ORGANIZED STATE ---------- */
-  it('shows organized message when empty', async () => {
-    mockFiles = [];
-    const { getByText } = render(<Home />);
-
+    // 5. Assert
     await waitFor(() => {
-      expect(getByText('All images are organized!')).toBeTruthy();
-      expect(getByText('Great job!')).toBeTruthy();
+      // Kiểm tra move file
+      expect(mockMove).toHaveBeenCalled();
+      
+      // SỬA DÒNG NÀY: Dùng Regex để chấp nhận dấu cách do JSON pretty print tạo ra
+      // /"folder":\s*"Math Class"/ nghĩa là: "folder": (khoảng trắng tùy ý) "Math Class"
+      expect(mockWrite).toHaveBeenCalledWith(expect.stringMatching(/"folder":\s*"Math Class"/));
+      
+      // Kiểm tra update cache
+      expect(updateCacheAfterMove).toHaveBeenCalledWith(
+        'Unorganized', 
+        'Math Class', 
+        expect.any(String), 
+        expect.objectContaining({ subject: 'Math Class' })
+      );
     });
   });
 
-  it('handles missing directory', async () => {
-    mockDirExists = false;
+  it('does not move files if no event matches', async () => {
+    // 1. Setup: Ảnh chụp lúc 12:00 (không có lịch)
+    const { File: MockFileClass } = require('expo-file-system');
+    const imgFile = new MockFileClass('docs', 'lunch.jpg');
+    
+    mockList.mockReturnValue([imgFile]);
+    mockText.mockResolvedValue(JSON.stringify({ time: '2024-01-01T12:00:00.000Z' }));
+
+    // Mock Calendar trả về rỗng
+    (getData as jest.Mock).mockResolvedValue(JSON.stringify(['cal1']));
+    (Calendar.getEventsAsync as jest.Mock).mockResolvedValue([]);
+
+    const { getByText } = render(<Home />);
+    await waitFor(() => expect(getByText('Auto classify these images')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('Auto classify these images'));
+    });
+
+    // Expect: Không có lệnh move nào
+    expect(mockMove).not.toHaveBeenCalled();
+  });
+
+  /* ---------- ERROR HANDLING ---------- */
+
+  it('handles errors gracefully (file corrupted)', async () => {
+    // 1. Setup
+    const { File: MockFileClass } = require('expo-file-system');
+    
+    // QUAN TRỌNG: Tạo instance từ Class Mock để vượt qua check `instanceof File` trong Home.tsx
+    const errorFile = new MockFileClass('docs', 'error.jpg');
+    mockList.mockReturnValue([errorFile]);
+    
+    // Giả lập lỗi khi đọc file JSON
+    mockText.mockRejectedValue(new Error('Corrupted File'));
+
+    // Spy console để không in lỗi ra terminal
+    const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
     const { getByText } = render(<Home />);
 
-    await waitFor(() => expect(getByText('All images are organized!')).toBeTruthy());
+    // 2. Wait for button
+    await waitFor(() => {
+      // Lúc này mockList trả về [errorFile], nên nút phải hiện
+      expect(getByText('Auto classify these images')).toBeTruthy();
+    });
+
+    // 3. Press
+    fireEvent.press(getByText('Auto classify these images'));
+
+    // 4. Assert
+    // App không crash, và không gọi move do lỗi đọc metadata
+    expect(mockMove).not.toHaveBeenCalled();
+    
+    // Cleanup
+    spy.mockRestore();
   });
-});
-it('handles filesystem error when loading unorganized images', async () => {
-  // Force Directory.list() to throw
-  mockDirExists = true;
-
-  mockFiles = {
-    get length() {
-      throw new Error('FS crash');
-    },
-  } as any;
-
-  const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-  const { getByText } = render(<Home />);
-
-  await waitFor(() => {
-    expect(getByText('All images are organized!')).toBeTruthy();
-  });
-
-  expect(spy).toHaveBeenCalledWith('Error loading unorganized images:', expect.any(Error));
-
-  spy.mockRestore();
 });

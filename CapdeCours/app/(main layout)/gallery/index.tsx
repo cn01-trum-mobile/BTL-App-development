@@ -3,7 +3,7 @@ import { SearchBar } from '@/components/SearchBar';
 import { Directory, Paths, File } from 'expo-file-system';
 import { RelativePathString, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, useRef } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity, Alert, TextInput, Animated, Modal, Keyboard } from 'react-native';
+import { ActivityIndicator, ScrollView, View, Text, Image, TouchableOpacity, Alert, TextInput, Animated, Modal, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { getPhotosFromCache, PhotoItem,  savePhotosToCache, clearFolderCache } from '@/utils/photoCache';
 
 
@@ -54,7 +54,7 @@ export default function GalleryScreen() {
     return false;
   };
 
-  const checkFolderHasPhotos = async (folderName: string): Promise<boolean> => {
+const checkFolderHasPhotos = async (folderName: string): Promise<boolean> => {
     try {
       const photosDir = new Directory(Paths.document, 'photos');
       const folderDir = new Directory(photosDir, folderName);
@@ -75,6 +75,32 @@ export default function GalleryScreen() {
       return hasJpg || hasJson;
     } catch (error) {
       console.error(`Error checking folder ${folderName}:`, error);
+      return false;
+    }
+  };
+
+  // Hàm xóa folder rỗng
+  const deleteEmptyFolder = async (folderName: string): Promise<boolean> => {
+    try {
+      const photosDir = new Directory(Paths.document, 'photos');
+      const folderDir = new Directory(photosDir, folderName);
+      
+      if (!folderDir.exists) {
+        return true; // Folder không tồn tại -> coi như đã xóa
+      }
+      
+      const hasPhotos = await checkFolderHasPhotos(folderName);
+      
+      if (!hasPhotos) {
+        console.log(`Deleting empty folder: ${folderName}`);
+        await folderDir.delete();
+        clearFolderCache(folderName);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`Error deleting empty folder ${folderName}:`, error);
       return false;
     }
   };
@@ -163,7 +189,7 @@ export default function GalleryScreen() {
       const validFolders: string[] = [];
       const allPhotos: GlobalPhotoItem[] = [];
 
-      for (const folderName of folderNames) {
+for (const folderName of folderNames) {
         const hasPhotos = await checkFolderHasPhotos(folderName);
         
         if (hasPhotos) {
@@ -189,7 +215,8 @@ export default function GalleryScreen() {
             swipeAnimations.current[folderName] = new Animated.Value(0);
           }
         } else {
-          console.log(`Skipping folder "${folderName}" as it has no photos.`);
+          // Xóa folder rỗng thay vì chỉ bỏ qua
+          await deleteEmptyFolder(folderName);
         }
       }
 
@@ -416,8 +443,12 @@ export default function GalleryScreen() {
   const isSearching = searchQuery.length > 0;
 
   return (
-    <View className="flex-1 px-5 pt-2"> 
-      {/* Progress indicator khi đang cập nhật metadata */}
+    <KeyboardAvoidingView 
+      className="flex-1" 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <View className="flex-1 px-5 pt-2">
+        {/* Progress indicator khi đang cập nhật metadata */}
       {isUpdatingMetadata && metadataUpdateProgress.total > 0 && (
         <View className="absolute top-16 left-5 right-5 z-50 bg-[#FFF8E3] rounded-lg p-3 shadow-lg border border-[#714A36]">
           <View className="flex-row items-center gap-3">
@@ -447,43 +478,48 @@ export default function GalleryScreen() {
           onChangeText={setSearchQuery}
           placeholder="Search for your photos" 
       /> 
-
-      {/* Rename Folder Modal */}
+      
+        {/* Rename Folder Modal */}
       <Modal
         visible={renameModalVisible}
         transparent={true}
         animationType="fade"
         onRequestClose={() => setRenameModalVisible(false)}
       >
-        <View className="flex-1 justify-center items-center bg-black/50">
-          <View className="bg-[#fff8e3] rounded-2xl p-6 w-80">
-            <Text className="text-xl font-bold text-primary mb-4">Rename Folder</Text>
-            
-            <TextInput
-              value={newFolderName}
-              onChangeText={setNewFolderName}
-              placeholder="Enter new folder name"
-              className="border border-gray-300 rounded-xl px-4 py-3 mb-6"
-              autoFocus
-            />
-            
-            <View className="flex-row justify-end gap-3">
-              <TouchableOpacity 
-                onPress={() => setRenameModalVisible(false)}
-                className="px-4 py-2 rounded-lg"
-              >
-                <Text className="text-gray-600">Cancel</Text>
-              </TouchableOpacity>
+        <KeyboardAvoidingView 
+          className="flex-1" 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View className="flex-1 justify-center items-center bg-black/50">
+            <View className="bg-[#fff8e3] rounded-2xl p-6 w-80 max-w-[90%]">
+              <Text className="text-xl font-bold text-primary mb-4">Rename Folder</Text>
               
-              <TouchableOpacity 
-                onPress={confirmRenameFolder}
-                className="bg-primary px-4 py-2 rounded-lg"
-              >
-                <Text className="text-white">Rename</Text>
-              </TouchableOpacity>
+              <TextInput
+                value={newFolderName}
+                onChangeText={setNewFolderName}
+                placeholder="Enter new folder name"
+                className="border border-gray-300 rounded-xl px-4 py-3 mb-6"
+                autoFocus
+              />
+              
+              <View className="flex-row justify-end gap-3">
+                <TouchableOpacity 
+                  onPress={() => setRenameModalVisible(false)}
+                  className="px-4 py-2 rounded-lg"
+                >
+                  <Text className="text-gray-600">Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  onPress={confirmRenameFolder}
+                  className="bg-primary px-4 py-2 rounded-lg"
+                >
+                  <Text className="text-white">Rename</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete Confirmation Modal */}
@@ -607,5 +643,6 @@ export default function GalleryScreen() {
         </ScrollView>
       )}
     </View>
+    </KeyboardAvoidingView>
   );
 }

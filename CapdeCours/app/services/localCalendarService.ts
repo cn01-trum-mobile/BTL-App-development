@@ -1,6 +1,6 @@
 // services/localCalendarService.ts
 import { getData, storeData } from '@/utils/asyncStorage';
-import { LocalAppEvent, SyncStatus, UnifiedEvent } from '../types/calendarTypes';
+import { LocalAppEvent, RepeatRule, SyncStatus, UnifiedEvent } from '../types/calendarTypes';
 import { calendarApi } from './calenderApi';
 
 const LOCAL_DB_KEY = 'MY_APP_LOCAL_EVENTS_V2';
@@ -45,23 +45,90 @@ const toUnifiedEvent = (e: LocalAppEvent): UnifiedEvent => {
     location: e.location,
     notes: e.notes,
     source: isRemote ? 'REMOTE' : 'LOCAL',
-    color: isRemote ? '#10B981' : '#AC3C00',
+    // Màu theo yêu cầu:
+    // - LOCAL: cam (nội bộ chưa sync)
+    // - REMOTE: nâu (đã sync cloud)
+    color: isRemote ? '#42160dbf' : '#AC3C00',
+    repeat: e.repeat,
   };
+};
+
+const parseRepeat = (repeat?: RepeatRule) => {
+  if (!repeat) return null;
+  const interval = Number.isFinite(repeat.interval) && repeat.interval > 0 ? repeat.interval : 1;
+  const untilMs = repeat.until ? new Date(repeat.until).getTime() : null;
+  return { frequency: repeat.frequency, interval, untilMs };
+};
+
+const addPeriod = (d: Date, frequency: RepeatRule['frequency'], interval: number) => {
+  const next = new Date(d);
+  if (frequency === 'DAILY') next.setDate(next.getDate() + interval);
+  else if (frequency === 'WEEKLY') next.setDate(next.getDate() + interval * 7);
+  else if (frequency === 'MONTHLY') next.setMonth(next.getMonth() + interval);
+  else if (frequency === 'YEARLY') next.setFullYear(next.getFullYear() + interval);
+  return next;
+};
+
+// Expand event lặp lại thành các instance trong khoảng (chỉ dùng cho UI)
+const expandRecurringUnifiedEventsInRange = (e: LocalAppEvent, rangeStart: Date, rangeEnd: Date): UnifiedEvent[] => {
+  const cfg = parseRepeat(e.repeat);
+  // Event không lặp lại: chỉ trả về nếu nằm trong khoảng [rangeStart, rangeEnd]
+  if (!cfg) {
+    const s = new Date(e.startDate).getTime();
+    const startMs = rangeStart.getTime();
+    const endMs = rangeEnd.getTime();
+    if (s >= startMs && s <= endMs) {
+      return [toUnifiedEvent(e)];
+    }
+    return [];
+  }
+
+  const baseStart = new Date(e.startDate);
+  const baseEnd = new Date(e.endDate);
+  const durationMs = Math.max(0, baseEnd.getTime() - baseStart.getTime());
+  const rangeStartMs = rangeStart.getTime();
+  const rangeEndMs = rangeEnd.getTime();
+
+  if (!Number.isFinite(baseStart.getTime())) return [toUnifiedEvent(e)];
+
+  const out: UnifiedEvent[] = [];
+  let currentStart = new Date(baseStart);
+  let safety = 0;
+
+  while (safety < 2000) {
+    safety++;
+    const curStartMs = currentStart.getTime();
+    const curEndMs = curStartMs + durationMs;
+
+    if (cfg.untilMs != null && curStartMs > cfg.untilMs) break;
+    if (curStartMs > rangeEndMs) break;
+
+    if (curStartMs >= rangeStartMs && curStartMs <= rangeEndMs) {
+      const u = toUnifiedEvent(e);
+      const instanceStart = new Date(curStartMs);
+      const instanceEnd = new Date(curEndMs);
+      const instanceStartIso = instanceStart.toISOString();
+      out.push({
+        ...u,
+        id: `${u.id}_${instanceStartIso}`,
+        startDate: instanceStartIso,
+        endDate: instanceEnd.toISOString(),
+        instanceStartDate: instanceStartIso,
+      });
+    }
+
+    currentStart = addPeriod(currentStart, cfg.frequency, cfg.interval);
+  }
+
+  return out;
 };
 
 // Lấy UnifiedEvent trong khoảng ngày (đã bỏ deleted)
 export const getLocalUnifiedEventsInRange = async (start: Date, end: Date): Promise<UnifiedEvent[]> => {
   const all = await loadRawEvents();
-  const startMs = start.getTime();
-  const endMs = end.getTime();
-
-  return all
-    .filter((e) => !e.deleted)
-    .filter((e) => {
-      const s = new Date(e.startDate).getTime();
-      return s >= startMs && s <= endMs;
-    })
-    .map(toUnifiedEvent);
+  const result = all.filter((e) => !e.deleted).flatMap((e) => expandRecurringUnifiedEventsInRange(e, start, end));
+  console.log('result', result);
+  return result;
 };
 
 // Tạo event mới local (offline-first)
@@ -71,6 +138,7 @@ export const addLocalEvent = async (details: {
   endDate: string;
   notes?: string;
   location?: string;
+  repeat?: RepeatRule;
 }): Promise<UnifiedEvent> => {
   const events = await loadRawEvents();
   const localId = createLocalId();
@@ -84,6 +152,7 @@ export const addLocalEvent = async (details: {
     location: details.location,
     syncStatus: 'pendingCreate',
     updatedAt: nowIso(),
+    repeat: details.repeat,
   };
 
   events.push(newEvent);
@@ -93,7 +162,10 @@ export const addLocalEvent = async (details: {
 };
 
 // Cập nhật event local theo localId
-export const updateLocalEvent = async (localId: string, updates: Partial<Pick<LocalAppEvent, 'title' | 'startDate' | 'endDate' | 'notes' | 'location'>>) => {
+export const updateLocalEvent = async (
+  localId: string,
+  updates: Partial<Pick<LocalAppEvent, 'title' | 'startDate' | 'endDate' | 'notes' | 'location' | 'repeat'>>
+) => {
   const events = await loadRawEvents();
   const index = events.findIndex((e) => e.localId === localId);
   if (index === -1) return;
@@ -160,7 +232,8 @@ export const syncLocalEventsWithBackend = async () => {
           endDate: e.endDate,
           notes: e.notes,
           location: e.location,
-        });
+          repeat: e.repeat || undefined,
+        } as any);
 
         events[i] = {
           ...e,
@@ -175,6 +248,7 @@ export const syncLocalEventsWithBackend = async () => {
           endDate: e.endDate,
           notes: e.notes,
           location: e.location,
+          repeat: e.repeat || undefined,
         } as any);
 
         events[i] = {
@@ -184,7 +258,10 @@ export const syncLocalEventsWithBackend = async () => {
         changed = true;
       } else if (e.syncStatus === 'pendingDelete' && e.remoteId) {
         try {
-          await calendarApi.delete(e.remoteId);
+          if (!e.isDisconnected) {
+            await calendarApi.delete(e.remoteId);
+          }
+
           // Sau khi xóa thành công trên server thì xóa hẳn local
           events.splice(i, 1);
           i--;
@@ -284,6 +361,7 @@ export const syncCloudEventsToLocal = async () => {
           existingLocal.endDate !== cloudEvent.endDate ||
           existingLocal.notes !== (cloudEvent.notes || undefined) ||
           existingLocal.location !== (cloudEvent.location || undefined) ||
+          existingLocal.repeat !== (cloudEvent.repeat || undefined) ||
           existingLocal.isDisconnected; // Cần update nếu đang disconnected để reconnect
 
         if (needsUpdate) {
@@ -296,6 +374,7 @@ export const syncCloudEventsToLocal = async () => {
               endDate: cloudEvent.endDate,
               notes: cloudEvent.notes || undefined,
               location: cloudEvent.location || undefined,
+              repeat: cloudEvent.repeat || undefined,
               syncStatus: 'synced', // Đã sync với cloud
               isDisconnected: false, // Clear flag disconnected khi login lại
               updatedAt: nowIso(),
@@ -313,6 +392,7 @@ export const syncCloudEventsToLocal = async () => {
           endDate: cloudEvent.endDate,
           notes: cloudEvent.notes || undefined,
           location: cloudEvent.location || undefined,
+          repeat: cloudEvent.repeat || undefined,
           syncStatus: 'synced', // Đã sync với cloud
           updatedAt: nowIso(),
         };

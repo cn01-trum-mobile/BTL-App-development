@@ -12,10 +12,12 @@
     "test": "jest --watchAll",
     "test:coverage": "jest --coverage --watchAll=false",
     "test:onboarding": "jest Onboarding-test.tsx --coverage --watchAll=false",
-    "test:home": "jest home-test.tsx --coverage --watchAll=false"
+    "test:home": "jest home-test.tsx --coverage --watchAll=false",
+    "generate:api": "openapi --input http://35.222.243.209:80/openapi.json --output src/api --client fetch --useUnionTypes"
   },
   "jest": {
     "preset": "jest-expo",
+    "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"],
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg)"
     ],
@@ -52,6 +54,7 @@
     "@testing-library/react-native": "^13.3.3",
     "date-fns": "^4.1.0",
     "expo": "54.0.23",
+    "expo-build-properties": "~1.0.10",
     "expo-calendar": "~15.0.7",
     "expo-camera": "~17.0.8",
     "expo-constants": "~18.0.9",
@@ -60,7 +63,9 @@
     "expo-font": "~14.0.9",
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.10",
+    "expo-image-manipulator": "^14.0.8",
     "expo-linking": "~8.0.8",
+    "expo-media-library": "~17.0.5",
     "expo-navigation-bar": "~5.0.9",
     "expo-router": "~6.0.14",
     "expo-secure-store": "~15.0.8",
@@ -93,6 +98,7 @@
     "eslint-config-expo": "~10.0.0",
     "jest": "~29.7.0",
     "jest-expo": "~54.0.13",
+    "openapi-typescript-codegen": "^0.30.0",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.5.11",
     "tailwindcss": "^3.4.17",

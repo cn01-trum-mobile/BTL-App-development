@@ -38,7 +38,9 @@ export const useUnifiedCalendar = () => {
 
             source: 'NATIVE' as const,
             calendarId: e.calendarId,
-            color: '#2196F3',
+            // Hồng: lịch mặc định (native)
+            color: '#A44063',
+            instanceStartDate: new Date(e.startDate).toISOString(),
           }));
         }
       }
@@ -53,7 +55,7 @@ export const useUnifiedCalendar = () => {
         remoteFromBackend = remoteEvents
           .filter((e: any) => {
             const eStart = new Date(e.startDate).getTime();
-            return eStart >= start.getTime() && eStart <= end.getTime();
+            return eStart >= start.getTime() && eStart <= end.getTime() && !e.repeat;
           })
           .map((e: any) => ({
             id: `remote_${e.id}`,
@@ -64,11 +66,14 @@ export const useUnifiedCalendar = () => {
             location: e.location || undefined,
             notes: e.notes || undefined,
             source: 'REMOTE' as const,
-            color: '#10B981',
+            // Nâu: đã sync cloud
+            color: '#42160dbf',
+            repeat: e.repeat || undefined,
           }));
+        // console.log('remoteFromBackend', remoteFromBackend);
       } catch (err) {
         // Nếu chưa login hoặc backend lỗi thì chỉ log, không làm app crash
-        console.warn('Không load được event từ backend:', err);
+        console.log('Không load được event từ backend:', err);
       }
 
       // 4. GỘP + DEDUP theo id (ưu tiên bản local/remote trong AsyncStorage vì có thể chứa thay đổi pending)
@@ -88,7 +93,7 @@ export const useUnifiedCalendar = () => {
       });
 
       const merged = Array.from(map.values()).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-
+      console.log('merged', merged);
       setEvents(merged);
     } catch (error) {
       console.error('Lỗi load lịch:', error);

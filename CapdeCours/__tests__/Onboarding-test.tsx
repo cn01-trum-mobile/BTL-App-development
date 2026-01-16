@@ -93,7 +93,7 @@ describe('Onboarding Screen', () => {
 
     await waitFor(() => {
       expect(asyncStorage.storeData).toHaveBeenCalledWith('onboarded', '1');
-      expect(router.replace).toHaveBeenCalledWith('/home');
+      expect(router.replace).toHaveBeenCalledWith('/(main layout)/login');
     });
   });
 
@@ -120,7 +120,7 @@ describe('Onboarding Screen', () => {
 
     await waitFor(() => {
       expect(asyncStorage.storeData).toHaveBeenCalledWith('onboarded', '1');
-      expect(router.replace).toHaveBeenCalledWith('/home');
+      expect(router.replace).toHaveBeenCalledWith('/(main layout)/login');
     });
   });
 
