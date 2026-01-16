@@ -1,212 +1,130 @@
-# 📸 CapdeCours - Ứng dụng Quản lý ảnh chụp bài giảng
-> 💬 **"Chụp nhanh – Lưu gọn – Tìm dễ"**
-> 
-## 🎯 Tổng quan
-Sinh viên thường chụp ảnh bài giảng trên bảng hoặc slide trong quá trình học. Tuy nhiên, các ảnh này dễ bị trộn lẫn với ảnh cá nhân và không được tổ chức theo ngữ cảnh học tập, khiến việc tìm lại để ôn tập trở nên khó khăn.
+# 📸 CapdeCours
+> **Chụp nhanh – Lưu gọn – Tìm dễ** 
 
-Ứng dụng này được xây dựng để giải quyết *pain point* đó, giúp người dùng **chụp nhanh – lưu gọn – tìm dễ** mà không cần thao tác thủ công phức tạp.
+**CapdeCours** là trợ lý học tập đắc lực giúp sinh viên số hóa, phân loại và tìm kiếm ảnh bài giảng chỉ trong một cú chạm. Biến thư viện ảnh phức tạp thành một đề cương ôn tập ngăn nắp.
 
 ---
 
-## ❓ Vấn đề & Giải pháp
+## 🎯 Vấn đề & Giải pháp
 
-### 🔎 Why – Tại sao vấn đề này tồn tại?
-- Điện thoại cho phép tạo album ảnh, nhưng vì **phải làm thủ công**, sinh viên thường **quên hoặc không duy trì việc sắp xếp**.
-- Ảnh bài giảng dễ bị trộn lẫn với ảnh cá nhân, dẫn đến khó quản lý và tốn thời gian tìm kiếm.
-- Các ứng dụng lưu trữ ảnh hiện có **chưa được thiết kế riêng cho việc tổ chức ảnh theo lịch học**.
+Tại sao sinh viên cần **CapdeCours** thay vì thư viện ảnh mặc định?
 
----
+### 😩 Vấn đề thực tế
+* **Thư viện ảnh rối loạn:** Ảnh chụp slide bài giảng quan trọng bị chìm nghỉm giữa hàng ngàn ảnh selfie, meme và ảnh đời sống.
+* **Truy xuất khó khăn:** Mất quá nhiều thời gian để lướt tìm lại một công thức cũ mỗi khi đến mùa thi cử.
+* **Tốn công sức:** Việc tạo album và di chuyển ảnh thủ công sau mỗi buổi học là một trải nghiệm nhàm chán và tốn thời gian.
 
-### 🚧 What – Thách thức
-- Cần một công cụ:
-  - **Chụp ảnh nhanh**
-  - **Phân loại tự động**
-  - **Dễ tìm lại**
-- Nhưng vẫn phải **đơn giản, trực quan**, không làm gián đoạn trải nghiệm học tập trên điện thoại.
+### ✅ Giải pháp của chúng tôi
+* **🧩 Tự động phân loại:** Thuật toán tự động nhận diện thời gian chụp để khớp với lịch học, đưa ảnh về đúng thư mục môn học mà không cần thao tác.
+* **🗂 Tổ chức khoa học:** Hệ thống lưu trữ trực quan theo Môn học và Timeline, giúp việc xem lại bài giảng liền mạch như đọc vở ghi.
+* **✨ Trải nghiệm tối giản:** Giao diện tập trung hoàn toàn vào nội dung học tập, loại bỏ các yếu tố gây xao nhãng.
 
 ---
 
-### 💡 How – Giải pháp
-- Phát triển một **ứng dụng chụp ảnh chuyên biệt cho bài giảng** với giao diện tối giản.
-- Ứng dụng sử dụng **app lịch mặc định trên điện thoại** làm nguồn chính  
-  (bao gồm lịch từ các tài khoản đã đăng nhập trên thiết bị).
-- Người dùng có thể **thêm nhanh một sự kiện lớp học đơn lẻ ngay trong app** khi cần.
-- Khi đến đúng thời gian học, ảnh chụp bằng app sẽ được:
-  - **Tự động phân loại** theo môn học, buổi học và thời gian chụp
-  - **Lưu vào thư viện của app** với tên file có cấu trúc rõ ràng:
-`[Môn học][Buổi học][Thời gian chụp]`
+## 🚀 Tính năng chính
+
+| Tính năng | Mô tả |
+|-----------|------|
+| 📅 **Kết nối lịch** | Đồng bộ với lịch trên thiết bị |
+| 📸 **Chụp nhanh** | Chụp và phân loại tự động |
+| 🗂️ **Tổ chức khoa học** | Sắp xếp theo `[Môn][Buổi][Thời gian]` |
+| 🔍 **Tìm dễ dàng** | Tìm ảnh theo môn học, ngày tháng |
 
 ---
 
-### Who – Đối tượng 
-- Sinh viên, học sinh ở **bất kỳ trường nào** cho phép sử dụng điện thoại để chụp ảnh trong giờ học.
-- **Bất kỳ người dùng nào** có nhu cầu chụp ảnh và **phân loại nội dung dựa trên lịch cá nhân** (lịch học, lịch họp, lịch sinh hoạt).
+## 🌟 Tính năng nâng cao
+
+- 📝 Ghi chú dưới ảnh
+- 📥 Xuất ra thư viện ảnh
+- 📱 Hoạt động offline
 
 ---
 
-### Where – Bối cảnh sử dụng
-- Trong lớp học khi chụp bài giảng.
-- Ở thư viện hoặc ký túc xá khi xem lại nội dung.
-- Bất kỳ đâu người dùng cần **chụp và tổ chức ảnh nhanh chóng theo ngữ cảnh thời gian**.
+## 👥 Đối tượng sử dụng
+- Sinh viên, học sinh các trường
+- Người dùng cần quản lý ảnh theo thời gian
 
 ---
 
-## ✨ Core Features
-- Ứng dụng quản lý ảnh bài học **đơn giản & trực quan**.
-- **Kết nối với lịch** trên thiết bị/ Cho phép người dùng thêm sự kiện trong app.
-- Chụp ảnh nhanh và **phân loại tự động theo lịch**.
-- Ảnh được **tổ chức khoa học** theo cấu trúc thống nhất.
+## 🔗 Tìm hiểu thêm về ứng dụng
+
+- 🌐 **Landing Page**: [Xem trên Landing Page](https://cn01-trum-mobile.github.io/.github/index.html)
+- 🎨 **UI/UX Design**: [Xem trên Behance](https://www.behance.net/gallery/237512783/CapDeCours)
 
 ---
 
-## 🌟 Nice-to-have Features
-- Ghi chú (note) dưới ảnh, tóm tắt nội dung chính.  
-- Recap cuối tuần: tổng hợp lại các ảnh đã chụp.  
-- Chia sẻ ảnh cho bạn bè trong danh sách liên hệ.  
-- Import ảnh từ thư viện bên ngoài.  
-- Ảnh chụp ngoài giờ học → đưa vào mục *“Ảnh lang thang”*, nhắc nhở người dùng phân loại thủ công.  
-- Ứng dụng hoạt động *offline*.  
+## 📲 Tải ứng dụng
+
+### 🤖 Android
+Tải file APK tại đây:
+[![Download APK](https://img.shields.io/badge/Download-APK-blue?style=for-the-badge)](https://drive.google.com/drive/folders/1G6HguScF-K-VYe7tPWVIxrd02aJe9rf7)
+
+### 🍎 iOS
+Trên iOS thì hơi phức tạp một chút, các bạn có thể sử dụng bằng cách dưới đây:
+1. Cài **Expo Go** từ App Store
+2. Quét mã QR bằng camera dưới đây:
+
+![QR Code](./CapdeCours/assets/images/QR_code.png)
 
 ---
 
-## 🚀 Lợi ích
-- Sinh viên *không cần lo mất công tìm ảnh bài giảng*.  
-- Giúp *ôn tập nhanh chóng* trước kỳ thi.  
-- Tăng sự *ngăn nắp & hiệu quả* trong học tập.  
+## ⚠️ Lưu ý quan trọng
+
+> **Về tính năng Đăng nhập / Đăng ký:**
+>
+> Hiện tại, hệ thống **Server Backend chưa được triển khai**. Do đó, tính năng **Đăng nhập/Đăng ký** tạm thời không khả dụng.
+>
+> 💡 **Hướng xử lý:** Vui lòng trải nghiệm ứng dụng khi bỏ qua màn hình đăng nhập bằng nút *Skip* để truy cập các tính năng chính.
 
 ---
 
-## 📅 Roadmap dự kiến
-- [1] Thiết kế UI/UX gọn nhẹ, dễ sử dụng.  
-- [2] Tích hợp chụp ảnh và lưu theo lịch học.  
-- [3] Thêm tính năng ghi chú & recap tuần.  
-- [4] Hỗ trợ chia sẻ & import ảnh ngoài.  
-- [5] Phát hành bản Beta cho sinh viên thử nghiệm.  
+## ⚙️ Cài đặt và chạy
 
----
-
-## 👨‍🎓 Đối tượng thử nghiệm
-- Nhóm sinh viên Bách Khoa (giai đoạn đầu).  
-- Mở rộng ra toàn bộ học sinh/sinh viên ở các trường khác.  
-
----
-
-## 🚀 Hướng dẫn cài đặt và chạy ứng dụng
-
-### Yêu cầu hệ thống
-- Node.js (phiên bản 18 trở lên)
+### Yêu cầu
+- Node.js 18+
 - npm hoặc yarn
-- Expo CLI (sẽ được cài đặt tự động)
-- Android Studio (để chạy trên Android) hoặc Xcode (để chạy trên iOS)
 
-### Bước 1: Clone repository và cài đặt dependencies
+### Các bước thực hiện
 
 ```bash
-# Di chuyển vào thư mục dự án
+# 1. Vào thư mục dự án
 cd CapdeCours
 
-# Cài đặt các dependencies
+# 2. Cài đặt dependencies
 npm install
-```
 
-### Bước 2: Cấu hình biến môi trường
-
-1. Tạo file `.env` trong thư mục `CapdeCours`:
-
-```bash
-# Copy từ file .env.example
+# 3. Cấu hình môi trường
 cp .env.example .env
-```
+# Chỉnh sửa API_URL cho backend trong file .env
 
-Hoặc tạo thủ công file `.env` với nội dung:
-
-```env
-API_URL=your-backend-api-url
-```
-
-**Lưu ý:** 
-- Thay đổi `API_URL` thành URL backend thực tế của bạn
-- File `.env` không được commit lên git (đã được thêm vào `.gitignore`)
-- Xem file `.env.example` để biết cấu trúc các biến môi trường cần thiết
-
-### Bước 3: Chạy ứng dụng
-
-#### Chạy trên Expo Go (nhanh nhất để test)
-
-```bash
+# 4. Chạy ứng dụng
 npm start
 ```
 
-Sau đó:
-- Quét QR code bằng ứng dụng **Expo Go** trên điện thoại (Android/iOS)
-- Hoặc nhấn `a` để mở trên Android emulator
-- Hoặc nhấn `i` để mở trên iOS simulator
+Code backend: [Tại đây](https://github.com/cn01-trum-mobile/CapdeCours-backend)
 
-#### Chạy trên Android
-
-```bash
-npm run android
-```
-
-#### Chạy trên iOS (chỉ trên macOS)
-
-```bash
-npm run ios
-```
-
-#### Chạy trên Web
-
-```bash
-npm run web
-```
-
-### Bước 4: Restart server sau khi thay đổi .env
-
-Nếu bạn thay đổi file `.env`, bạn cần **restart Expo dev server** để áp dụng thay đổi:
-
-1. Dừng server hiện tại (nhấn `Ctrl + C`)
-2. Chạy lại `npm start` hoặc `npm run android`/`npm run ios`
+### Chạy trên thiết bị
+- **Expo Go**: Quét QR code sau khi chạy `npm start`
+- **Android**: `npm run android`
+- **iOS**: `npm run ios` (chỉ macOS)
+- **Web**: `npm run web`
 
 ---
 
-## 🧪 Hướng dẫn kiểm thử
+## 🧪 Kiểm thử
 
-Dự án này sử dụng **Jest** và **React Native Testing Library** để kiểm
-thử cả giao diện UI và logic của ứng dụng.
-
-### 1. Chạy tất cả các bài kiểm thử
-
-``` bash
+```bash
+# Chạy test
 npm run test
-```
 
-Lệnh này sẽ:
-
--   Chạy tất cả các file test trong thư mục `__tests__/`
--   Hiển thị kết quả pass/fail trên terminal
--   Tự động theo dõi thay đổi file trong chế độ development
-
-### 2. Chạy kiểm thử kèm báo cáo coverage
-
-``` bash
+# Test với báo cáo coverage
 npm run test:coverage
 ```
 
-Lệnh này sẽ:
+---
 
--   Tạo **báo cáo coverage**
--   Xuất kết quả vào:
+## 📊 Quality
 
-```
-    coverage/
-    └── index.html
-```
-Bạn có thể mở `coverage/index.html` trong trình duyệt để xem bảng báo
-cáo coverage chi tiết (statements, branches, functions, lines).
+[![CI/CD](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml/badge.svg)](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml)
 
-
-
-
-[![React Native CI - Test, Report & SonarCloud](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml/badge.svg)](https://github.com/cn01-trum-mobile/BTL-App-development/actions/workflows/test.yml)
-
-[![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=cn01-trum-mobile_BTL-App-development)](https://sonarcloud.io/summary/new_code?id=cn01-trum-mobile_BTL-App-development)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/quality_gate?project=cn01-trum-mobile_BTL-App-development)](https://sonarcloud.io/summary/new_code?id=cn01-trum-mobile_BTL-App-development)
