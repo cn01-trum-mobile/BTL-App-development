@@ -20,11 +20,15 @@ export default function CameraScreen() {
     setAction({
       icon: <ScanLine size={24} color="rgba(66,22,13,0.75)" strokeWidth={2} />,
       onPress: async () => {
+        try{
         if (cameraRef.current) {
           setDisabled(true);
           const photo = await cameraRef.current.takePictureAsync({ exif: true });
           setDisabled(false);
-          router.replace({ pathname: '/camera/imagePreview', params: { uri: photo.uri, rotation: photo.exif.Orientation } });
+          router.replace({ pathname: '/camera/imagePreview', params: { uri: photo.uri, rotation: photo.exif?.Orientation ?? 0 } });
+        }}
+        catch (error) {
+          console.log('Error taking picture:', error);
         }
       },
     });
@@ -40,6 +44,7 @@ export default function CameraScreen() {
   const pinchGesture = Gesture.Pinch()
     .onStart(() => scheduleOnRN(setShowZoom, true))
     .onUpdate((event) => {
+      if (!event.scale || isNaN(event.scale)) return;
       let nextZoom = lastZoom + (event.scale - 1) / 5; // tweak sensitivity here
       // console.log(nextZoom);
       if (nextZoom < 0) nextZoom = 0;

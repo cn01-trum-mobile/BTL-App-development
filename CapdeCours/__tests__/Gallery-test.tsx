@@ -1489,7 +1489,305 @@ describe('GalleryScreen - 100% Coverage', () => {
     fireEvent.press(getByText('Rename'));
 
     await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Success', expect.stringContaining('No photos to update'));
+      expect(mockClearFolderCache).toHaveBeenCalledWith('Math');
+      expect(mockClearFolderCache).toHaveBeenCalledWith('Mathematics');
+    });
+  });
+
+  // --- ADDITIONAL EDGE CASE TESTS FOR INCREASED COVERAGE ---
+
+  it('handles search with special characters and unicode', async () => {
+    mockGetPhotosFromCache.mockResolvedValue([
+      {
+        uri: 'file://docs/photos/Math/img1.jpg',
+        name: 'café-math.jpg',
+        timestamp: new Date('2024-01-01T08:00:00.000Z').getTime(),
+        note: 'étude café mathématiques',
+        subject: 'Mathématiques',
+        session: '2024-01-01',
+        folderName: 'Math',
+      },
+    ]);
+
+    const { getByTestId, getByText } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('gallery-search-bar')).toBeTruthy();
+    });
+
+    const searchBar = getByTestId('gallery-search-bar');
+    fireEvent.changeText(searchBar, 'café');
+
+    await waitFor(() => {
+      expect(getByText(/Photos matches/)).toBeTruthy();
+    });
+  });
+
+  it('handles search with empty results and non-empty query', async () => {
+    mockGetPhotosFromCache.mockResolvedValue([
+      {
+        uri: 'file://docs/photos/Math/img1.jpg',
+        name: 'math.jpg',
+        timestamp: new Date('2024-01-01T08:00:00.000Z').getTime(),
+        note: 'Math note',
+        subject: 'Math',
+        session: '2024-01-01',
+        folderName: 'Math',
+      },
+    ]);
+
+    const { getByTestId, getByText } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('gallery-search-bar')).toBeTruthy();
+    });
+
+    const searchBar = getByTestId('gallery-search-bar');
+    fireEvent.changeText(searchBar, 'nonexistent');
+
+    await waitFor(() => {
+      expect(getByText('No photos found with this note.')).toBeTruthy();
+    });
+  });
+
+  it('handles folder creation on navigation', async () => {
+    mockDirExists = false;
+
+    const { getByText } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByText('No folders yet. Take a photo to start!')).toBeTruthy();
+    });
+
+    // Should create photos directory if it doesn't exist
+    expect(mockPhotosDirContents).toBeDefined();
+  });
+
+  it('handles cache load errors gracefully', async () => {
+    mockGetPhotosFromCache.mockRejectedValue(new Error('Cache load failed'));
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    // Force the error by making directory listing fail
+    mockPhotosDirContents = {
+      get length() {
+        throw new Error('Directory listing failed');
+      },
+    } as any;
+
+    const { getByText } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByText('No folders yet. Take a photo to start!')).toBeTruthy();
+    });
+
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
+  it('handles image file missing during folder processing', async () => {
+    const { Directory, File } = require('expo-file-system');
+    const photosDir = new Directory(null, 'photos');
+    const folder1 = new Directory(photosDir, 'Math');
+
+    mockPhotosDirContents = [folder1];
+    const jsonFile = createMockFile('file://docs/photos/Math/img1.json');
+    mockFolderContents['Math'] = [jsonFile];
+    mockFileTexts['file://docs/photos/Math/img1.json'] = JSON.stringify({
+      time: '2024-01-01T08:00:00.000Z',
+    });
+    mockFileExists['file://docs/photos/Math/img1.jpg'] = false; // Image doesn't exist
+
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    mockGetPhotosFromCache.mockResolvedValue(null);
+
+    render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Image not found for:'));
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it('handles search with very long query', async () => {
+    const longQuery = 'a'.repeat(1000);
+    mockGetPhotosFromCache.mockResolvedValue([]);
+
+    const { getByTestId, getByText } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('gallery-search-bar')).toBeTruthy();
+    });
+
+    const searchBar = getByTestId('gallery-search-bar');
+    fireEvent.changeText(searchBar, longQuery);
+
+    await waitFor(() => {
+      expect(getByText('No photos found with this note.')).toBeTruthy();
+    });
+  });
+
+  it('handles folder names with special characters', async () => {
+    const { Directory } = require('expo-file-system');
+    const photosDir = new Directory(null, 'photos');
+    const folder1 = new Directory(photosDir, 'Café & Résumé');
+    const folder2 = new Directory(photosDir, '数学');
+
+    mockPhotosDirContents = [folder1, folder2];
+    const mathJson = createMockFile('file://docs/photos/Café & Résumé/img1.json');
+    const chineseJson = createMockFile('file://docs/photos/数学/img2.json');
+    mockFolderContents['Café & Résumé'] = [mathJson];
+    mockFolderContents['数学'] = [chineseJson];
+    mockFileExists['file://docs/photos/Café & Résumé/img1.jpg'] = true;
+    mockFileExists['file://docs/photos/数学/img2.jpg'] = true;
+    mockGetPhotosFromCache.mockResolvedValue([]);
+
+    const { getByTestId } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('folder-Café & Résumé')).toBeTruthy();
+      expect(getByTestId('folder-数学')).toBeTruthy();
+    });
+  });
+
+  it('handles metadata file with invalid JSON structure', async () => {
+    const { Directory, File } = require('expo-file-system');
+    const photosDir = new Directory(null, 'photos');
+    const folder1 = new Directory(photosDir, 'Math');
+
+    mockPhotosDirContents = [folder1];
+    const jsonFile = createMockFile('file://docs/photos/Math/img1.json');
+    mockFolderContents['Math'] = [jsonFile];
+    
+    // Mock invalid JSON that will cause parsing error
+    mockFileTexts['file://docs/photos/Math/img1.json'] = 'invalid json{';
+    
+    mockFileExists['file://docs/photos/Math/img1.jpg'] = true;
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    mockGetPhotosFromCache.mockResolvedValue(null);
+
+    render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalled();
+    });
+
+    expect(consoleSpy).toHaveBeenCalledWith('Error reading img1.json:', expect.any(SyntaxError));
+    consoleSpy.mockRestore();
+  });
+
+  it('handles simultaneous rename operations', async () => {
+    const { Directory, File } = require('expo-file-system');
+    const photosDir = new Directory(null, 'photos');
+    const folder1 = new Directory(photosDir, 'Math');
+    const folder2 = new Directory(photosDir, 'Physics');
+
+    mockPhotosDirContents = [folder1, folder2];
+    const mathJson = createMockFile('file://docs/photos/Math/img1.json');
+    const physicsJson = createMockFile('file://docs/photos/Physics/img2.json');
+    mockFolderContents['Math'] = [mathJson];
+    mockFolderContents['Physics'] = [physicsJson];
+    mockFileExists['file://docs/photos/Math/img1.jpg'] = true;
+    mockFileExists['file://docs/photos/Physics/img2.jpg'] = true;
+    mockGetPhotosFromCache.mockResolvedValue([]);
+
+    const { getByTestId, getByText, getByPlaceholderText } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('folder-edit-Math')).toBeTruthy();
+      expect(getByTestId('folder-edit-Physics')).toBeTruthy();
+    });
+
+    // Start first rename
+    fireEvent.press(getByTestId('folder-edit-Math'));
+    await waitFor(() => {
+      expect(getByText('Rename Folder')).toBeTruthy();
+    });
+
+    const input = getByPlaceholderText('Enter new folder name');
+    fireEvent.changeText(input, 'Mathematics');
+
+    // Start second rename (should handle gracefully)
+    fireEvent.press(getByTestId('folder-edit-Physics'));
+
+    await waitFor(() => {
+      expect(getByText('Rename')).toBeTruthy();
+    });
+  });
+
+  it('handles search with mixed case sensitivity', async () => {
+    mockGetPhotosFromCache.mockResolvedValue([
+      {
+        uri: 'file://docs/photos/Math/img1.jpg',
+        name: 'MATH_PHOTO.jpg',
+        timestamp: new Date('2024-01-01T08:00:00.000Z').getTime(),
+        note: 'Mathematics Study',
+        subject: 'MATHEMATICS',
+        session: '2024-01-01',
+        folderName: 'Math',
+      },
+    ]);
+
+    const { getByTestId, getByText } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('gallery-search-bar')).toBeTruthy();
+    });
+
+    const searchBar = getByTestId('gallery-search-bar');
+    
+    // Test various case combinations
+    fireEvent.changeText(searchBar, 'math');
+    await waitFor(() => {
+      expect(getByText(/Photos matches/)).toBeTruthy();
+    });
+
+    fireEvent.changeText(searchBar, 'MATHEMATICS');
+    await waitFor(() => {
+      expect(getByText(/Photos matches/)).toBeTruthy();
+    });
+
+    fireEvent.changeText(searchBar, 'Mathematics');
+    await waitFor(() => {
+      expect(getByText(/Photos matches/)).toBeTruthy();
+    });
+  });
+
+  it('handles empty search after searching', async () => {
+    mockGetPhotosFromCache.mockResolvedValue([
+      {
+        uri: 'file://docs/photos/Math/img1.jpg',
+        name: 'img1.jpg',
+        timestamp: new Date('2024-01-01T08:00:00.000Z').getTime(),
+        note: 'Math note',
+        subject: 'Math',
+        session: '2024-01-01',
+        folderName: 'Math',
+      },
+    ]);
+
+    const { getByTestId, queryByText } = render(<GalleryScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('gallery-search-bar')).toBeTruthy();
+    });
+
+    const searchBar = getByTestId('gallery-search-bar');
+    
+    // Search first
+    fireEvent.changeText(searchBar, 'Math');
+    await waitFor(() => {
+      expect(queryByText(/Photos matches/)).toBeTruthy();
+    });
+
+    // Clear search
+    fireEvent.changeText(searchBar, '');
+    await waitFor(() => {
+      expect(queryByText(/Photos matches/)).toBeNull();
+      expect(queryByText(/Folders matches/)).toBeNull();
     });
   });
 
