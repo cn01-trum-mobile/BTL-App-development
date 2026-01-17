@@ -235,4 +235,238 @@ describe('LoginScreen', () => {
     expect(LocalCalendarService.deleteCloudEvents).toHaveBeenCalled();
     expect(authApi.logout).toHaveBeenCalled();
   });
+
+  // --- ADDITIONAL EDGE CASE TESTS FOR INCREASED COVERAGE ---
+
+  it('handles username with whitespace only', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    render(<LoginScreen />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Enter username'), '   ');
+    fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'password');
+
+    fireEvent.press(screen.getByText('LOGIN'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('Missing info', 'Please enter username and password');
+      expect(authApi.login).not.toHaveBeenCalled();
+    });
+  });
+
+  it('handles password with whitespace only', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    render(<LoginScreen />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Enter username'), 'username');
+    fireEvent.changeText(screen.getByPlaceholderText('Enter password'), '   ');
+
+    fireEvent.press(screen.getByText('LOGIN'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('Missing info', 'Please enter username and password');
+      expect(authApi.login).not.toHaveBeenCalled();
+    });
+  });
+
+  it('handles token exists but username returns null', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('fake-token');
+    (authApi.getUsername as jest.Mock).mockResolvedValue(null);
+
+    render(<LoginScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Signed in as')).toBeTruthy();
+      expect(screen.getByText('User')).toBeTruthy(); // Should show 'User' as fallback
+    });
+  });
+
+  it('handles logout error during sync before logout', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (LocalCalendarService.getCloudEventsCount as jest.Mock).mockResolvedValue(0);
+    (LocalCalendarService.syncLocalEventsWithBackend as jest.Mock).mockRejectedValue(new Error('Sync failed'));
+
+    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+    render(<LoginScreen />);
+    await waitFor(() => screen.getByText('Logout'));
+
+    fireEvent.press(screen.getByText('Logout'));
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Sync before logout failed:', expect.any(Error));
+      expect(authApi.logout).toHaveBeenCalled(); // Should still logout despite sync error
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it('handles logout error in performLogout', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (LocalCalendarService.getCloudEventsCount as jest.Mock).mockResolvedValue(0);
+    (authApi.logout as jest.Mock).mockRejectedValue(new Error('Logout failed'));
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    render(<LoginScreen />);
+    await waitFor(() => screen.getByText('Logout'));
+
+    fireEvent.press(screen.getByText('Logout'));
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Logout error:', expect.any(Error));
+      expect(alertSpy).toHaveBeenCalledWith('Error', 'An error occurred during logout.');
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it('handles cloud events operation error in logout', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (LocalCalendarService.getCloudEventsCount as jest.Mock).mockRejectedValue(new Error('Cloud count failed'));
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    render(<LoginScreen />);
+    await waitFor(() => screen.getByText('Logout'));
+
+    fireEvent.press(screen.getByText('Logout'));
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Logout error:', expect.any(Error));
+      expect(alertSpy).toHaveBeenCalledWith('Error', 'An error occurred during logout.');
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it('shows loading state during login', async () => {
+    render(<LoginScreen />);
+    
+    // Setup login to take time
+    (authApi.login as jest.Mock).mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(true), 100)));
+
+    fireEvent.changeText(screen.getByPlaceholderText('Enter username'), 'user');
+    fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'pass');
+    
+    fireEvent.press(screen.getByText('LOGIN'));
+
+    // Should show loading indicator
+    expect(screen.getByTestId('activity-indicator')).toBeTruthy();
+
+    // Wait for completion
+    await waitFor(() => {
+      expect(screen.getByText('Signed in as')).toBeTruthy();
+    }, { timeout: 200 });
+  });
+
+  it('shows loading state during logout', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (LocalCalendarService.getCloudEventsCount as jest.Mock).mockResolvedValue(0);
+    
+    // Setup logout to take time
+    (authApi.logout as jest.Mock).mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(), 100)));
+
+    render(<LoginScreen />);
+    await waitFor(() => screen.getByText('Logout'));
+
+    fireEvent.press(screen.getByText('Logout'));
+
+    // Should show loading indicator on logout button
+    await waitFor(() => {
+      expect(screen.getByTestId('activity-indicator')).toBeTruthy();
+    });
+  });
+
+  it('cancels logout when user presses Cancel in cloud events dialog', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (LocalCalendarService.getCloudEventsCount as jest.Mock).mockResolvedValue(5);
+
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    render(<LoginScreen />);
+    await waitFor(() => screen.getByText('Logout'));
+
+    fireEvent.press(screen.getByText('Logout'));
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalled());
+
+    // Simulate pressing "Cancel"
+    const buttons = alertSpy.mock.calls[0][2];
+    const cancelButton = buttons?.find((btn) => btn.text === 'Cancel');
+
+    await act(async () => {
+      if (cancelButton && cancelButton.onPress) {
+        await cancelButton.onPress();
+      }
+    });
+
+    // Should not call any logout functions
+    expect(authApi.logout).not.toHaveBeenCalled();
+    expect(LocalCalendarService.convertCloudEventsToLocal).not.toHaveBeenCalled();
+    expect(LocalCalendarService.deleteCloudEvents).not.toHaveBeenCalled();
+  });
+
+  it('navigates to add system calendar when logged in', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (authApi.getUsername as jest.Mock).mockResolvedValue('TestUser');
+
+    render(<LoginScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Add system calendar')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('Add system calendar'));
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/(main layout)/login/chooseCalendar');
+  });
+
+  it('navigates to change password when logged in', async () => {
+    (authApi.getToken as jest.Mock).mockResolvedValue('token');
+    (authApi.getUsername as jest.Mock).mockResolvedValue('TestUser');
+
+    render(<LoginScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Change password')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('Change password'));
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/(main layout)/login/changeInfo');
+  });
+
+  it('handles login with undefined error message', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    render(<LoginScreen />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Enter username'), 'user');
+    fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'pass');
+
+    (authApi.login as jest.Mock).mockRejectedValue(new Error());
+
+    fireEvent.press(screen.getByText('LOGIN'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('Login failed', 'Cannot login, please try again');
+    });
+  });
+
+  it('handles login with null error', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    render(<LoginScreen />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Enter username'), 'user');
+    fireEvent.changeText(screen.getByPlaceholderText('Enter password'), 'pass');
+
+    (authApi.login as jest.Mock).mockRejectedValue(null);
+
+    fireEvent.press(screen.getByText('LOGIN'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('Login failed', 'Cannot login, please try again');
+    });
+  });
 });

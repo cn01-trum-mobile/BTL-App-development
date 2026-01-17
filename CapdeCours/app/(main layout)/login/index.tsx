@@ -184,7 +184,7 @@ export default function LoginScreen() {
 
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8} disabled={loading}>
               {loading ? (
-                <ActivityIndicator color="#B91C1C" />
+                <ActivityIndicator testID="activity-indicator" color="#B91C1C" />
               ) : (
                 <>
                   <LogOut size={18} color="#B91C1C" />
@@ -221,7 +221,7 @@ export default function LoginScreen() {
             </View>
 
             <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
-              {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginButtonText}>LOGIN</Text>}
+              {loading ? <ActivityIndicator testID="activity-indicator" color="#FFF" /> : <Text style={styles.loginButtonText}>LOGIN</Text>}
             </TouchableOpacity>
             {/* Thêm vào dưới nút Skip hoặc Login */}
             <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>

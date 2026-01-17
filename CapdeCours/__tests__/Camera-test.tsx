@@ -12,7 +12,7 @@ const mockGestureCallbacks: any = {
 };
 
 const mockNavContext = {
-  onPress: undefined as any,
+  onPress: jest.fn(), // Khai báo là Jest function để tracking được
 };
 
 // --- MOCKS ---
@@ -165,5 +165,243 @@ describe('Camera Screen', () => {
     });
 
     expect(getByTestId('camera-view').props.facing).toBe('front');
+  });
+
+  // --- ADDITIONAL EDGE CASE TESTS FOR INCREASED COVERAGE ---
+
+  it('handles zoom at minimum boundary', () => {
+    const { getByTestId } = render(<CameraScreen />);
+
+    act(() => {
+      if (mockGestureCallbacks.pinchStart) mockGestureCallbacks.pinchStart();
+    });
+
+    // Test exact minimum zoom boundary
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({ scale: 0.1 });
+    });
+    expect(getByTestId('camera-view').props.zoom).toBe(0);
+  });
+
+  it('handles zoom at maximum boundary', () => {
+    const { getByTestId } = render(<CameraScreen />);
+
+    act(() => {
+      if (mockGestureCallbacks.pinchStart) mockGestureCallbacks.pinchStart();
+    });
+
+    // Test exact maximum zoom boundary
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({ scale: 10 });
+    });
+    expect(getByTestId('camera-view').props.zoom).toBe(1);
+  });
+
+  it('handles zoom with negative scale', () => {
+    const { getByTestId } = render(<CameraScreen />);
+
+    act(() => {
+      if (mockGestureCallbacks.pinchStart) mockGestureCallbacks.pinchStart();
+    });
+
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({ scale: -1 });
+    });
+    expect(getByTestId('camera-view').props.zoom).toBe(0);
+  });
+
+  it('handles camera permission denied', () => {
+    jest.doMock('expo-camera', () => {
+      const { View } = jest.requireActual('react-native');
+      const React = jest.requireActual('react');
+
+      const MockCameraView = React.forwardRef((props: any, ref: any) => {
+        React.useImperativeHandle(ref, () => ({
+          takePictureAsync: mockTakePictureAsync,
+        }));
+        return <View testID="camera-view" {...props} />;
+      });
+      MockCameraView.displayName = 'CameraView';
+
+      return {
+        useCameraPermissions: jest.fn(() => [{ granted: false }, jest.fn()]),
+        CameraView: MockCameraView,
+        CameraType: {},
+      };
+    });
+
+    const { getByTestId } = render(<CameraScreen />);
+    expect(getByTestId('camera-view')).toBeTruthy();
+  });
+
+  it('handles camera permission loading', () => {
+    jest.doMock('expo-camera', () => {
+      const { View } = jest.requireActual('react-native');
+      const React = jest.requireActual('react');
+
+      const MockCameraView = React.forwardRef((props: any, ref: any) => {
+        React.useImperativeHandle(ref, () => ({
+          takePictureAsync: mockTakePictureAsync,
+        }));
+        return <View testID="camera-view" {...props} />;
+      });
+      MockCameraView.displayName = 'CameraView';
+
+      return {
+        useCameraPermissions: jest.fn(() => [null, jest.fn()]),
+        CameraView: MockCameraView,
+        CameraType: {},
+      };
+    });
+
+    const { getByTestId } = render(<CameraScreen />);
+    expect(getByTestId('camera-view')).toBeTruthy();
+  });
+
+  it('handles take picture error', async () => {
+    mockTakePictureAsync.mockRejectedValue(new Error('Camera error'));
+
+    render(<CameraScreen />);
+
+    // Trigger Context Action
+    await act(async () => {
+      if (mockNavContext.onPress) await mockNavContext.onPress();
+    });
+
+    expect(mockTakePictureAsync).toHaveBeenCalled();
+  });
+
+  it('handles take picture with different exif data', async () => {
+    mockTakePictureAsync.mockResolvedValue({
+      uri: 'photo.jpg',
+      exif: { Orientation: 2, DateTime: '2024:01:01 12:00:00' },
+    });
+
+    render(<CameraScreen />);
+
+    await act(async () => {
+      if (mockNavContext.onPress) await mockNavContext.onPress();
+    });
+
+    expect(mockTakePictureAsync).toHaveBeenCalled();
+  });
+
+  it('handles take picture without exif', async () => {
+    mockTakePictureAsync.mockResolvedValue({
+      uri: 'photo.jpg',
+    });
+
+    render(<CameraScreen />);
+
+    await act(async () => {
+      if (mockNavContext.onPress) await mockNavContext.onPress();
+    });
+
+    expect(mockTakePictureAsync).toHaveBeenCalled();
+  });
+
+  it('handles switching camera multiple times', () => {
+    const { getByTestId, UNSAFE_getAllByType } = render(<CameraScreen />);
+    const btn = UNSAFE_getAllByType(require('react-native').TouchableOpacity)[0];
+
+    // Switch to front
+    fireEvent.press(btn);
+    expect(getByTestId('camera-view').props.facing).toBe('front');
+
+    // Switch back to back
+    fireEvent.press(btn);
+    expect(getByTestId('camera-view').props.facing).toBe('back');
+  });
+
+  it('handles pinch gesture without start', () => {
+    const { getByTestId } = render(<CameraScreen />);
+
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({ scale: 0.5 });
+    });
+
+    // Should not crash and maintain default zoom
+    expect(getByTestId('camera-view').props.zoom).toBe(0);
+  });
+
+  it('handles pinch gesture with undefined scale', () => {
+    const { getByTestId } = render(<CameraScreen />);
+
+    act(() => {
+      if (mockGestureCallbacks.pinchStart) mockGestureCallbacks.pinchStart();
+    });
+
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({});
+    });
+
+    expect(getByTestId('camera-view').props.zoom).toBe(0);
+  });
+
+  it('handles pinch gesture with null scale', () => {
+    const { getByTestId } = render(<CameraScreen />);
+
+    act(() => {
+      if (mockGestureCallbacks.pinchStart) mockGestureCallbacks.pinchStart();
+    });
+
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({ scale: null });
+    });
+
+    expect(getByTestId('camera-view').props.zoom).toBe(0);
+  });
+
+  it('handles tap gesture without callback', () => {
+    mockGestureCallbacks.tapEnd = undefined;
+
+    const { getByTestId } = render(<CameraScreen />);
+
+    act(() => {
+      // Should not crash when tapEnd is undefined
+    });
+
+    expect(getByTestId('camera-view')).toBeTruthy();
+  });
+
+  it('handles context action being undefined', () => {
+    mockNavContext.onPress = undefined;
+
+    render(<CameraScreen />);
+
+    // Should not crash when context action is undefined
+    expect(mockTakePictureAsync).not.toHaveBeenCalled();
+  });
+
+  it('simulates camera initialization', () => {
+    render(<CameraScreen />);
+
+    // Verify camera view renders with default props
+    const { getByTestId } = render(<CameraScreen />);
+    const cameraView = getByTestId('camera-view');
+    
+    expect(cameraView.props.facing).toBe('back');
+    expect(cameraView.props.zoom).toBe(0);
+  });
+
+  it('handles rapid zoom changes', () => {
+    const { getByTestId } = render(<CameraScreen />);
+
+    act(() => {
+      if (mockGestureCallbacks.pinchStart) mockGestureCallbacks.pinchStart();
+    });
+
+    // Rapid zoom changes
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({ scale: 0.5 });
+    });
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({ scale: 1.5 });
+    });
+    act(() => {
+      if (mockGestureCallbacks.pinchUpdate) mockGestureCallbacks.pinchUpdate({ scale: 0.2 });
+    });
+
+    expect(getByTestId('camera-view').props.zoom).toBe(0);
   });
 });
