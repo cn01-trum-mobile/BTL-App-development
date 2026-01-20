@@ -30,7 +30,7 @@ export default function CalendarSelectScreen({ navigation }: any) {
 
         console.log(JSON.stringify(allCalendars, null, 2));
 
-        // 3. Lọc lịch "rác" / hệ thống
+// 3. Lọc lịch "rác" / hệ thống
         const filteredCalendars = allCalendars.filter((cal) => {
           // Logic lọc: Bỏ lịch sinh nhật tự động, bỏ lịch Holidays (nếu muốn)
           // cal.source.type === 'LOCAL' thường là lịch trong máy không đồng bộ cloud
@@ -38,7 +38,13 @@ export default function CalendarSelectScreen({ navigation }: any) {
 
           const isAndroid = isGoogleAccount;
 
-          const isIOS = cal.source?.type?.toLowerCase() === 'caldav' && cal.source?.name?.toLowerCase().includes('gmail') && cal.allowsModifications === true;
+          // iOS: Cho phép tất cả CalDAV calendars (iCloud, Gmail, Outlook, etc.)
+          // Chỉ loại bỏ các calendar hệ thống không cần thiết
+          const isIOS = (cal.source?.type?.toLowerCase() === 'caldav' || 
+                        cal.source?.type?.toLowerCase() === 'subscribed') &&
+                       !cal.title?.toLowerCase().includes('birthday') &&
+                       !cal.title?.toLowerCase().includes('holidays') &&
+                       !cal.source?.name?.toLowerCase().includes('birthdays');
           return isAndroid || isIOS;
         });
 
